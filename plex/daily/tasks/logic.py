@@ -28,23 +28,15 @@ def get_taskgroup_from_timing_configs(
     return TaskGroup(tasks=tasks, start=start, end=end)
 
 
-def get_task_unique_key(task: Task) -> tuple:
-    subtask_keys = tuple(
-        (get_task_unique_key(subtask) for subtask in taskgroup.tasks)
-        for taskgroup in task.subtaskgroups
-    )
-    return (task.name, subtask_keys)
-
-
 def correct_timing_in_taskgroups(
     timing_tasks: list[Task], taskgroups: list[TaskGroup]
 ) -> list[TaskGroup]:
     """If times in the timings have changed,
     this will correct them in the taskgroups.
     """
-    desired_times: dict[tuple, list[tuple[int, list[TaskGroup]]]] = {}
+    desired_times: dict[str, list[tuple[int, list[TaskGroup]]]] = {}
     for task in timing_tasks:
-        key = get_task_unique_key(task)
+        key = task.name
         if key not in desired_times:
             desired_times[key] = []
         desired_times[key].append((task.time, task.subtaskgroups))
@@ -52,7 +44,7 @@ def correct_timing_in_taskgroups(
     for taskgroup in taskgroups:
         new_tasks = []
         for task in taskgroup.tasks:
-            key = get_task_unique_key(task)
+            key = task.name
             if key in desired_times and desired_times[key]:
                 task_times = [i[0] for i in desired_times[key]]
                 if task.end_diff:
@@ -162,7 +154,8 @@ def calculate_tasks_with_start_end_using_start(
 ) -> list[Task]:
     if default_start_time is None:
         start_time = datetime.now()
-        start_time = start_time.replace(hour=7, minute=30, second=0, microsecond=0)
+        start_time = start_time.replace(
+            hour=7, minute=30, second=0, microsecond=0)
     else:
         start_time = default_start_time
     new_seq = []
@@ -218,7 +211,8 @@ def calculate_times_in_taskgroup(
     taskgroup: TaskGroup, default_start_time: Optional[datetime] = None
 ) -> TaskGroup:
     if taskgroup.end is not None:
-        tasks = calculate_tasks_with_start_end_using_end(taskgroup.tasks, taskgroup.end)
+        tasks = calculate_tasks_with_start_end_using_end(
+            taskgroup.tasks, taskgroup.end)
     else:
         tasks = calculate_tasks_with_start_end_using_start(
             taskgroup.tasks, taskgroup.start or default_start_time
@@ -235,6 +229,7 @@ def calculate_times_in_taskgroup_list(
         newtg = calculate_times_in_taskgroup(taskgroup, start_time)
         if len(newtg.tasks):
             assert newtg.tasks[-1].start
-            start_time = newtg.tasks[-1].start + timedelta(minutes=newtg.tasks[-1].time)
+            start_time = newtg.tasks[-1].start + \
+                timedelta(minutes=newtg.tasks[-1].time)
             newtgs.append(newtg)
     return newtgs
