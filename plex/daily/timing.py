@@ -8,6 +8,8 @@ from plex.daily.config_format import (
     process_timedelta_to_mins,
 )
 
+TIMING_PATTERN = r"\[({})\](?:\*(\d+))?".format(TIMEDELTA_FORMAT)
+
 
 @dataclass(frozen=True)
 class TimingConfig:
@@ -17,8 +19,7 @@ class TimingConfig:
 
 
 def process_minutes(input_str: str) -> list[int]:
-    pattern = r"\[({})\](?:\*(\d+))?".format(TIMEDELTA_FORMAT)
-    matches = re.findall(pattern, input_str)
+    matches = re.findall(TIMING_PATTERN, input_str)
     tasks = []
     for x, y in matches:
         minutes = process_timedelta_to_mins(x)
