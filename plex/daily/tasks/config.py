@@ -173,6 +173,7 @@ def _process_taskgroups(
             tasks.append(item)
         elif isinstance(item, datetime):
             if not tasks:
+                # start
                 start, end = item, None
             else:
                 # clear the end of this task group

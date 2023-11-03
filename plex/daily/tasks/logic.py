@@ -154,8 +154,7 @@ def calculate_tasks_with_start_end_using_start(
 ) -> list[Task]:
     if default_start_time is None:
         start_time = datetime.now()
-        start_time = start_time.replace(
-            hour=7, minute=30, second=0, microsecond=0)
+        start_time = start_time.replace(hour=7, minute=30, second=0, microsecond=0)
     else:
         start_time = default_start_time
     new_seq = []
@@ -211,8 +210,7 @@ def calculate_times_in_taskgroup(
     taskgroup: TaskGroup, default_start_time: Optional[datetime] = None
 ) -> TaskGroup:
     if taskgroup.end is not None:
-        tasks = calculate_tasks_with_start_end_using_end(
-            taskgroup.tasks, taskgroup.end)
+        tasks = calculate_tasks_with_start_end_using_end(taskgroup.tasks, taskgroup.end)
     else:
         tasks = calculate_tasks_with_start_end_using_start(
             taskgroup.tasks, taskgroup.start or default_start_time
@@ -229,7 +227,6 @@ def calculate_times_in_taskgroup_list(
         newtg = calculate_times_in_taskgroup(taskgroup, start_time)
         if len(newtg.tasks):
             assert newtg.tasks[-1].start
-            start_time = newtg.tasks[-1].start + \
-                timedelta(minutes=newtg.tasks[-1].time)
+            start_time = newtg.tasks[-1].start + timedelta(minutes=newtg.tasks[-1].time)
             newtgs.append(newtg)
     return newtgs

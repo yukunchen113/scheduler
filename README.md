@@ -14,6 +14,9 @@
   - phase 1:
     - only worry about pulling the task, don't calculate timing unless if it's the default tasks
 - allow spec of a hour:min for start/end diffs
+- timing improvments:
+  - specify time of when a task is supposed to start in timing
+  - indicate timing overlaps
 - correction of timings
   - must be greater than sum of subtask times?
     - might not be desirable since we can have multiple timing specs, how do you modify that?
