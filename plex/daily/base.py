@@ -4,8 +4,8 @@ from plex.daily.tasks.logic import (
     get_taskgroup_from_timing_configs,
     sync_taskgroups_with_timing,
 )
-from plex.daily.timing import get_timing_from_file
 from plex.daily.template import update_templates_in_file
+from plex.daily.timing import get_timing_from_file
 
 
 def process_daily_file(filename: str) -> None:

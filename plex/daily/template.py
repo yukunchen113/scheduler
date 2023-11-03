@@ -28,11 +28,12 @@ timing spec
 '''
 in which case {y:x} can be used
 """
-from typing import Union
-import re
-from plex.daily.config_format import SPLITTER
-import os
 import glob
+import os
+import re
+from typing import Union
+
+from plex.daily.config_format import SPLITTER
 
 TEMPLATE_PATTERN = r"\{([^:]*)(?:\:([^:]*))?\}\n"
 TEMPLATE_BASE_DIR = "routines"
@@ -62,12 +63,13 @@ def read_template_from_timing(filename: str) -> dict[str, list[str]]:
     for line in lines:
         if re.match(TEMPLATE_PATTERN, line):
             dfile, section = re.findall(TEMPLATE_PATTERN, line)[0]
-            path = os.path.join(TEMPLATE_BASE_DIR, dfile+".*")
+            path = os.path.join(TEMPLATE_BASE_DIR, dfile + ".*")
             files = glob.glob(path)
             if len(files) != 1:
                 print(
                     f"pattern '{line}' returned '{files}', must be "
-                    "exactly 1 file. Ignoring pattern.")
+                    "exactly 1 file. Ignoring pattern."
+                )
                 continue
             file = files[0]
             tsections = read_sections_from_template(file)
@@ -81,21 +83,22 @@ def read_template_from_timing(filename: str) -> dict[str, list[str]]:
     return templates
 
 
-def write_timings_inplace_of_template(filename: str, replacements: dict[str, list[str]]) -> None:
-    """replaces the templates with the routines in the timing file
-    """
+def write_timings_inplace_of_template(
+    filename: str, replacements: dict[str, list[str]]
+) -> None:
+    """replaces the templates with the routines in the timing file"""
     with open(filename) as f:
         lines = f.readlines()
     new_lines = []
-    for idx,line in enumerate(lines):
+    for idx, line in enumerate(lines):
         if line.startswith(SPLITTER):
             new_lines += lines[idx:]
             break
         if line in replacements:
-            new_lines+=replacements[line]
+            new_lines += replacements[line]
         else:
             new_lines.append(line)
-    with open(filename,"w") as f:
+    with open(filename, "w") as f:
         f.write("".join(new_lines))
 
 
