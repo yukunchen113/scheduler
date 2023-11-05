@@ -32,28 +32,41 @@ import glob
 import os
 import re
 from typing import Union
+import subprocess
+import os
 
 from plex.daily.config_format import SPLITTER
 
 TEMPLATE_PATTERN = r"\{([^:]*)(?:\:([^:]*))?\}\n"
 TEMPLATE_BASE_DIR = "routines"
 
+DEFAULT_TEMPLATE_SECTION = "__default__:\n"
 
-def read_sections_from_template(filename: str) -> dict[str, list[str]]:
-    sections: dict[str, list[str]] = {}
-    with open(filename) as f:
-        lines = f.readlines()
-        last_key = None
-        for line in lines:
-            if line.endswith(":\n"):
-                last_key = line.replace(":\n", "")
-                sections[last_key] = []
-            elif last_key is not None:
-                sections[last_key].append(line)
+
+def read_sections_from_template(filename: str, datestr: str) -> dict[str, list[str]]:
+    sections: dict[str, list[str]] = {DEFAULT_TEMPLATE_SECTION: []}
+
+    if filename.endswith(".py"):
+        output = subprocess.run(
+            f"python3.10 {filename} --datestr {datestr}".split(), env=os.environ, capture_output=True)
+        lines = [line+"\n" for line in output.stdout.decode().split("\n")]
+    else:
+        with open(filename) as f:
+            lines = f.readlines()
+
+    last_key = None
+    for line in lines:
+        if line.endswith(":\n"):
+            last_key = line.replace(":\n", "")
+            sections[last_key] = []
+        elif last_key is not None:
+            sections[last_key].append(line)
+        elif last_key is None:
+            sections[DEFAULT_TEMPLATE_SECTION].append(line)
     return sections
 
 
-def read_template_from_timing(filename: str) -> dict[str, list[str]]:
+def read_template_from_timing(filename: str, datestr: str) -> dict[str, list[str]]:
     """
     reads the {} templates in timing file
     """
@@ -72,7 +85,7 @@ def read_template_from_timing(filename: str) -> dict[str, list[str]]:
                 )
                 continue
             file = files[0]
-            tsections = read_sections_from_template(file)
+            tsections = read_sections_from_template(file, datestr)
             if section:
                 timing_lines = tsections[section]
             else:
@@ -102,6 +115,6 @@ def write_timings_inplace_of_template(
         f.write("".join(new_lines))
 
 
-def update_templates_in_file(filename: str) -> None:
-    replacements = read_template_from_timing(filename)
+def update_templates_in_file(filename: str, datestr: str) -> None:
+    replacements = read_template_from_timing(filename, datestr=datestr)
     write_timings_inplace_of_template(filename, replacements)
