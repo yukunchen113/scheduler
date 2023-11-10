@@ -1,7 +1,14 @@
 import dataclasses
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TypedDict
 
+class TimeType(TypedDict):
+    hour: int
+    minute: int
+    second: int
+    microsecond: int
+
+DEFAULT_START_TIME: TimeType = dict(hour=7, minute=30, second=0, microsecond=0)
 
 @dataclasses.dataclass(frozen=True)
 class Task:
@@ -25,3 +32,13 @@ class TaskGroup:
         assert (
             self.start is None or self.end is None
         ), "can not specify both start and end"
+
+
+def get_all_tasks_in_taskgroups(taskgroups: list[TaskGroup]):
+    """Gets all tasks and subtasks in taskgroups"""
+    tasks = []
+    for taskgroup in taskgroups:
+        for task in taskgroup.tasks:
+            tasks+=get_all_tasks_in_taskgroups(task.subtaskgroups)
+            tasks.append(task)
+    return tasks

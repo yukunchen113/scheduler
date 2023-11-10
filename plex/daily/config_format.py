@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 from datetime import datetime
 
 SPLITTER = "-------------"
@@ -7,7 +8,7 @@ TIMEDELTA_FORMAT = r"\d+(?:hr|h)?(?:\d+)?"
 TIME_FORMAT = r"\d\d?(?::\d\d)?(?:am|pm|PM|AM)?"
 
 
-def process_time_to_datetime_now(timestr: str):
+def process_time_to_datetime_now(timestr: str, default_datetime: Optional[datetime] = None):
     if re.fullmatch(TIME_FORMAT, timestr) is None:
         raise ValueError(f"Invalid format: '{timestr}'")
     ptimestr = timestr.lower()
@@ -18,8 +19,10 @@ def process_time_to_datetime_now(timestr: str):
     elif ptimestr.endswith("pm"):
         extra_hr = 12
         ptimestr = ptimestr.replace("pm", "")
-
-    output = datetime.now()
+    if default_datetime is None:
+        output = datetime.now()
+    else:
+        output = default_datetime
     timelist = ptimestr.split(":")
     hour = int(timelist[0])
     if not extra_hr is None:
