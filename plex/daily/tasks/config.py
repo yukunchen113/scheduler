@@ -54,7 +54,8 @@ def convert_task_to_string(task: Task, subtask_level: int = 0) -> str:
     subtask_indentation = "\t" * subtask_level
     output = f"{start_diff}\t{subtask_indentation}{start_time}-{end_time}:\t{task.name} ({process_mins_to_timedelta(task.time)})\t{end_diff}\n"
     output += task.notes
-    output += convert_taskgroups_to_string(task.subtaskgroups, subtask_level + 1)
+    output += convert_taskgroups_to_string(
+        task.subtaskgroups, subtask_level + 1)
     return output
 
 
@@ -65,11 +66,13 @@ def convert_taskgroups_to_string(
     for taskgroup in taskgroups:
         string = ""
         if taskgroup.start is not None:
-            string += "\t" * subtask_level + taskgroup.start.strftime("%-H:%M") + "\n"
+            string += "\t" * subtask_level + \
+                taskgroup.start.strftime("%-H:%M") + "\n"
         for task in taskgroup.tasks:
             string += convert_task_to_string(task, subtask_level)
         if taskgroup.end is not None:
-            string += "\t" * subtask_level + taskgroup.end.strftime("%-H:%M") + "\n"
+            string += "\t" * subtask_level + \
+                taskgroup.end.strftime("%-H:%M") + "\n"
         output.append(string)
     return "\n".join(output)
 
@@ -217,7 +220,7 @@ def _process_taskgroups(
     return taskgroups
 
 
-def read_taskgroups(filename: str) -> list[TaskGroup]:
+def read_taskgroups(filename: str, default_datetime: Optional[datetime] = None) -> list[TaskGroup]:
     # gets lines after split
     lines = get_lines_after_splitter(filename)
     # create tasks
@@ -234,7 +237,8 @@ def read_taskgroups(filename: str) -> list[TaskGroup]:
             num_tabs, specified_time_str = re.findall(
                 r"(\t+)?({0})".format(TIME_FORMAT), line
             )[0]
-            specified_time = process_time_to_datetime_now(specified_time_str)
+            specified_time = process_time_to_datetime_now(
+                specified_time_str, default_datetime)
             lines_with_level.append((specified_time, len(num_tabs)))
             level = len(num_tabs)
         elif not line.strip():

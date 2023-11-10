@@ -23,7 +23,7 @@ def process_daily_file(datestr: str, filename: str) -> None:
     date = date.replace(**DEFAULT_START_TIME)
     update_templates_in_file(filename, datestr=datestr)
     timings = get_timing_from_file(filename)
-    read_tasks = read_taskgroups(filename)
+    read_tasks = read_taskgroups(filename, date)
     if not read_tasks:
         taskgroup = get_taskgroup_from_timing_configs(timings)
         taskgroup = calculate_times_in_taskgroup(taskgroup, date)
@@ -42,7 +42,7 @@ def sync_tasks_to_calendar(datestr: str, filename: str) -> None:
     """
     date = datetime.strptime(datestr, "%Y-%m-%d")
     date = date.replace(**DEFAULT_START_TIME)
-    taskgroups = read_taskgroups(filename)
+    taskgroups = read_taskgroups(filename, date)
     taskgroups = calculate_times_in_taskgroup_list(taskgroups, date)
     tasks = get_all_tasks_in_taskgroups(taskgroups)
     date_id = datestr.replace("-", "")
