@@ -50,3 +50,4 @@ l10n/
 daily/*
 calendar/*
 routines/*
+secrets.py

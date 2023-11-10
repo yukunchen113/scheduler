@@ -37,7 +37,7 @@ import os
 
 from plex.daily.config_format import SPLITTER
 
-TEMPLATE_PATTERN = r"\{([^:]*)(?:\:([^:]*))?\}\n"
+TEMPLATE_PATTERN = r"\{([^:]*)(?:\:([^:]*))?\}"
 TEMPLATE_BASE_DIR = "routines"
 
 DEFAULT_TEMPLATE_SECTION = "__default__:\n"

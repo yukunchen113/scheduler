@@ -1,31 +1,11 @@
 import dataclasses
-from datetime import datetime, timedelta
-from typing import Optional, Union
+from datetime import datetime
+from typing import Optional
 
 from plex.daily.tasks import Task, TaskGroup
 from plex.daily.timing import TimingConfig
-
-
-def get_taskgroup_from_timing_configs(
-    timing_configs: list[TimingConfig],
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
-) -> TaskGroup:
-    tasks = []
-    for timing_config in timing_configs:
-        tasks += [
-            Task(
-                name=timing_config.task_description,
-                time=minutes,
-                subtaskgroups=(
-                    []
-                    if timing_config.subtimings is None
-                    else [get_taskgroup_from_timing_configs(timing_config.subtimings)]
-                ),
-            )
-            for minutes in timing_config.timings
-        ]
-    return TaskGroup(tasks=tasks, start=start, end=end)
+from plex.daily.tasks.logic.calculations import calculate_times_in_taskgroup_list
+from plex.daily.tasks.logic.conversions import get_taskgroup_from_timing_configs
 
 
 def correct_timing_in_taskgroups(
@@ -133,7 +113,7 @@ def correct_deleted_and_added_timings_in_taskgroup(
 
 
 def sync_taskgroups_with_timing(
-    timings: list[TimingConfig], taskgroups: list[TaskGroup]
+    timings: list[TimingConfig], taskgroups: list[TaskGroup], start_datetime: Optional[datetime] = None
 ) -> list[TaskGroup]:
     # additional timings - add to end
     timing_tasks: list[Task] = [
@@ -145,88 +125,5 @@ def sync_taskgroups_with_timing(
     # correct the task.times in the taskgroups
     taskgroups = correct_timing_in_taskgroups(timing_tasks, taskgroups)
     # recalculate start and ends
-    taskgroups = calculate_times_in_taskgroup_list(taskgroups)
+    taskgroups = calculate_times_in_taskgroup_list(taskgroups, start_datetime)
     return taskgroups
-
-
-def calculate_tasks_with_start_end_using_start(
-    tasks: list[Task], default_start_time: Optional[datetime] = None
-) -> list[Task]:
-    if default_start_time is None:
-        start_time = datetime.now()
-        start_time = start_time.replace(hour=7, minute=30, second=0, microsecond=0)
-    else:
-        start_time = default_start_time
-    new_seq = []
-    for task in tasks:
-        if task.start_diff is not None:
-            start_time += timedelta(minutes=task.start_diff)
-        end_time = start_time + timedelta(minutes=task.time)
-        subtaskgroups = calculate_times_in_taskgroup_list(
-            task.subtaskgroups, start_time
-        )
-        new_seq.append(
-            dataclasses.replace(
-                task,
-                start=start_time,
-                # add end diff for readability, but don't use it for next task calculation
-                end=end_time
-                + timedelta(minutes=0 if task.end_diff is None else task.end_diff),
-                subtaskgroups=subtaskgroups,
-            )
-        )
-        start_time = end_time
-        if task.end_diff is not None and task.end_diff > 0:
-            start_time += timedelta(minutes=task.end_diff)
-    return new_seq
-
-
-def calculate_tasks_with_start_end_using_end(
-    tasks: list[Task], end_time: datetime
-) -> list[Task]:
-    """End times are pre-diff modification (start_diff, end_diff), so
-    unlike calculate_tasks_with_start_end_using_start, this function
-    will not use end_times as an absolute spec.
-    """
-    if not tasks:
-        return []
-    new_seq = []
-    for task in tasks[::-1]:
-        start_time = end_time - timedelta(minutes=task.time)
-        subtaskgroups = calculate_times_in_taskgroup_list(
-            task.subtaskgroups, start_time
-        )
-        new_seq.append(
-            dataclasses.replace(
-                task, start=start_time, end=end_time, subtaskgroups=subtaskgroups
-            )
-        )
-        end_time = start_time
-    new_seq = new_seq[::-1]
-    return calculate_tasks_with_start_end_using_start(new_seq, new_seq[0].start)
-
-
-def calculate_times_in_taskgroup(
-    taskgroup: TaskGroup, default_start_time: Optional[datetime] = None
-) -> TaskGroup:
-    if taskgroup.end is not None:
-        tasks = calculate_tasks_with_start_end_using_end(taskgroup.tasks, taskgroup.end)
-    else:
-        tasks = calculate_tasks_with_start_end_using_start(
-            taskgroup.tasks, taskgroup.start or default_start_time
-        )
-    return dataclasses.replace(taskgroup, tasks=tasks)
-
-
-def calculate_times_in_taskgroup_list(
-    taskgroups: list[TaskGroup], default_start_time: Optional[datetime] = None
-) -> list[TaskGroup]:
-    newtgs = []
-    start_time = default_start_time
-    for taskgroup in taskgroups:
-        newtg = calculate_times_in_taskgroup(taskgroup, start_time)
-        if len(newtg.tasks):
-            assert newtg.tasks[-1].start
-            start_time = newtg.tasks[-1].start + timedelta(minutes=newtg.tasks[-1].time)
-            newtgs.append(newtg)
-    return newtgs
