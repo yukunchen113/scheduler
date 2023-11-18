@@ -24,4 +24,4 @@ def get_taskgroup_from_timing_configs(
             )
             for minutes in timing_config.timings
         ]
-    return TaskGroup(tasks=tasks, start=start, end=end)
+    return TaskGroup(tasks=tasks, user_specified_start=start, user_specified_end=end)

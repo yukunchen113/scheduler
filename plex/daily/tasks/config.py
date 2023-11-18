@@ -13,9 +13,11 @@ from plex.daily.config_format import (
 )
 from plex.daily.tasks import Task, TaskGroup
 
+OVERLAP_COLOR = '91m'
+
 TASK_LINE_FORMAT = (
-    r"((?:\+|-){0})?\t(\t+)?({1})-({1}):\t(.+) \(({0})\)\t?((?:\+|-){0})?".format(
-        TIMEDELTA_FORMAT, TIME_FORMAT
+    r"((?:\+|-){0})?\t(\t+)?(?:\033\[{2})?({1})-({1}):\t(.+) \(({0})\)(?:\033\[0m)?\t?((?:\+|-){0})?".format(
+        TIMEDELTA_FORMAT, TIME_FORMAT, OVERLAP_COLOR
     )
 )
 
@@ -36,7 +38,7 @@ def prep_tasks_section(filename: str) -> list[str]:
     return towrite
 
 
-def convert_task_to_string(task: Task, subtask_level: int = 0) -> str:
+def convert_task_to_string(task: Task, subtask_level: int = 0, is_warning_color: bool = False) -> str:
     assert task.start is not None
     assert task.end is not None
     start_time = task.start.strftime("%-H:%M")
@@ -52,7 +54,16 @@ def convert_task_to_string(task: Task, subtask_level: int = 0) -> str:
         else f'{"+" if task.end_diff>=0 else "-"}{process_mins_to_timedelta(abs(task.end_diff))}'
     )
     subtask_indentation = "\t" * subtask_level
-    output = f"{start_diff}\t{subtask_indentation}{start_time}-{end_time}:\t{task.name} ({process_mins_to_timedelta(task.time)})\t{end_diff}\n"
+    wc_begin = f"\033[{OVERLAP_COLOR}" if is_warning_color else ''
+    wc_end = '\033[0m' if is_warning_color else ''
+    output = (
+        f"{start_diff}\t{subtask_indentation}"
+        f"{wc_begin}"
+        f"{start_time}-{end_time}:"
+        f"\t{task.name} ({process_mins_to_timedelta(task.time)})"
+        f"{wc_end}"
+        f"\t{end_diff}\n"
+    )
     output += task.notes
     output += convert_taskgroups_to_string(
         task.subtaskgroups, subtask_level + 1)
@@ -63,16 +74,22 @@ def convert_taskgroups_to_string(
     taskgroups: list[TaskGroup], subtask_level: int = 0
 ) -> str:
     output = []
-    for taskgroup in taskgroups:
+    for tgidx, taskgroup in enumerate(taskgroups):
         string = ""
-        if taskgroup.start is not None:
+        if taskgroup.user_specified_start is not None:
             string += "\t" * subtask_level + \
-                taskgroup.start.strftime("%-H:%M") + "\n"
+                taskgroup.user_specified_start.strftime("%-H:%M") + "\n"
         for task in taskgroup.tasks:
-            string += convert_task_to_string(task, subtask_level)
-        if taskgroup.end is not None:
+            is_overlapped_task = False
+            if tgidx < len(taskgroups)-1:
+                # see if task is overlapping between intervals
+                is_overlapped_task = taskgroups[tgidx+1].start < task.end
+            task_str = convert_task_to_string(
+                task, subtask_level, is_overlapped_task)
+            string += task_str
+        if taskgroup.user_specified_end is not None:
             string += "\t" * subtask_level + \
-                taskgroup.end.strftime("%-H:%M") + "\n"
+                taskgroup.user_specified_end.strftime("%-H:%M") + "\n"
         output.append(string)
     return "\n".join(output)
 
@@ -185,7 +202,8 @@ def _process_taskgroups(
                     subtaskgroups=_process_taskgroups(sublines_with_level),
                     notes=notes,
                 )
-                taskgroups.append(TaskGroup(tasks, start=start, end=item))
+                taskgroups.append(
+                    TaskGroup(tasks, user_specified_start=start, user_specified_end=item))
                 notes = ""
                 sublines_with_level = []
 
@@ -200,7 +218,8 @@ def _process_taskgroups(
                     subtaskgroups=_process_taskgroups(sublines_with_level),
                     notes=notes,
                 )
-                taskgroups.append(TaskGroup(tasks, start=start, end=end))
+                taskgroups.append(
+                    TaskGroup(tasks, user_specified_start=start, user_specified_end=end))
                 sublines_with_level = []
                 notes = ""
             assert not sublines_with_level
@@ -216,7 +235,8 @@ def _process_taskgroups(
             subtaskgroups=_process_taskgroups(sublines_with_level),
             notes=notes,
         )
-        taskgroups.append(TaskGroup(tasks, start=start, end=end))
+        taskgroups.append(
+            TaskGroup(tasks, user_specified_start=start, user_specified_end=end))
     return taskgroups
 
 
