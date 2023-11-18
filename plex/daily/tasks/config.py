@@ -8,7 +8,7 @@ from plex.daily.config_format import (
     TIME_FORMAT,
     TIMEDELTA_FORMAT,
     process_mins_to_timedelta,
-    process_time_to_datetime_now,
+    process_time_to_datetime,
     process_timedelta_to_mins,
 )
 from plex.daily.tasks import Task, TaskGroup
@@ -54,8 +54,9 @@ def convert_task_to_string(task: Task, subtask_level: int = 0, is_warning_color:
         else f'{"+" if task.end_diff>=0 else "-"}{process_mins_to_timedelta(abs(task.end_diff))}'
     )
     subtask_indentation = "\t" * subtask_level
-    wc_begin = f"\033[{OVERLAP_COLOR}" if is_warning_color else ''
-    wc_end = '\033[0m' if is_warning_color else ''
+    wc_begin = wc_end = ""
+    if is_warning_color:
+        wc_begin, wc_end = f"\033[{OVERLAP_COLOR}", '\033[0m'
     output = (
         f"{start_diff}\t{subtask_indentation}"
         f"{wc_begin}"
@@ -136,8 +137,8 @@ def process_task_line(line: str) -> tuple[Optional[Task], int]:
         end_diff,
     ) = matches[0]
     minutes = process_timedelta_to_mins(minutes)
-    start = process_time_to_datetime_now(start_time)
-    end = process_time_to_datetime_now(end_time)
+    start = process_time_to_datetime(start_time)
+    end = process_time_to_datetime(end_time)
     start_diff = (
         None
         if start_diff == ""
@@ -257,7 +258,7 @@ def read_taskgroups(filename: str, default_datetime: Optional[datetime] = None) 
             num_tabs, specified_time_str = re.findall(
                 r"(\t+)?({0})".format(TIME_FORMAT), line
             )[0]
-            specified_time = process_time_to_datetime_now(
+            specified_time = process_time_to_datetime(
                 specified_time_str, default_datetime)
             lines_with_level.append((specified_time, len(num_tabs)))
             level = len(num_tabs)
