@@ -8,7 +8,7 @@ TIMEDELTA_FORMAT = r"\d+(?:hr|h)?(?:\d+)?"
 TIME_FORMAT = r"\d\d?(?::\d\d)?(?:am|pm|PM|AM)?"
 
 
-def process_time_to_datetime_now(timestr: str, default_datetime: Optional[datetime] = None):
+def process_time_to_datetime(timestr: str, default_datetime: Optional[datetime] = None):
     if re.fullmatch(TIME_FORMAT, timestr) is None:
         raise ValueError(f"Invalid format: '{timestr}'")
     ptimestr = timestr.lower()

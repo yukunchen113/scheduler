@@ -8,14 +8,16 @@ from plex.daily.config_format import (
     TIME_FORMAT,
     TIMEDELTA_FORMAT,
     process_mins_to_timedelta,
-    process_time_to_datetime_now,
+    process_time_to_datetime,
     process_timedelta_to_mins,
 )
 from plex.daily.tasks import Task, TaskGroup
 
+OVERLAP_COLOR = '91m'
+
 TASK_LINE_FORMAT = (
-    r"((?:\+|-){0})?\t(\t+)?({1})-({1}):\t(.+) \(({0})\)\t?((?:\+|-){0})?".format(
-        TIMEDELTA_FORMAT, TIME_FORMAT
+    r"((?:\+|-){0})?\t(\t+)?(?:\033\[{2})?({1})-({1}):\t(.+) \(({0})\)(?:\033\[0m)?\t?((?:\+|-){0})?".format(
+        TIMEDELTA_FORMAT, TIME_FORMAT, OVERLAP_COLOR
     )
 )
 
@@ -36,7 +38,7 @@ def prep_tasks_section(filename: str) -> list[str]:
     return towrite
 
 
-def convert_task_to_string(task: Task, subtask_level: int = 0) -> str:
+def convert_task_to_string(task: Task, subtask_level: int = 0, overlap_time: Optional[datetime] = None) -> str:
     assert task.start is not None
     assert task.end is not None
     start_time = task.start.strftime("%-H:%M")
@@ -52,27 +54,46 @@ def convert_task_to_string(task: Task, subtask_level: int = 0) -> str:
         else f'{"+" if task.end_diff>=0 else "-"}{process_mins_to_timedelta(abs(task.end_diff))}'
     )
     subtask_indentation = "\t" * subtask_level
-    output = f"{start_diff}\t{subtask_indentation}{start_time}-{end_time}:\t{task.name} ({process_mins_to_timedelta(task.time)})\t{end_diff}\n"
+    wc_begin = wc_end = ""
+    if overlap_time is not None and overlap_time < task.end:
+        wc_begin, wc_end = f"\033[{OVERLAP_COLOR}", '\033[0m'
+    output = (
+        f"{start_diff}\t{subtask_indentation}"
+        f"{wc_begin}"
+        f"{start_time}-{end_time}:"
+        f"\t{task.name} ({process_mins_to_timedelta(task.time)})"
+        f"{wc_end}"
+        f"\t{end_diff}\n"
+    )
     output += task.notes
     output += convert_taskgroups_to_string(
-        task.subtaskgroups, subtask_level + 1)
+        task.subtaskgroups, subtask_level + 1, overlap_time)
     return output
 
 
 def convert_taskgroups_to_string(
-    taskgroups: list[TaskGroup], subtask_level: int = 0
+    taskgroups: list[TaskGroup], subtask_level: int = 0, default_overlap_time: Optional[datetime] = None
 ) -> str:
     output = []
-    for taskgroup in taskgroups:
+    for tgidx, taskgroup in enumerate(taskgroups):
         string = ""
-        if taskgroup.start is not None:
+        if taskgroup.user_specified_start is not None:
             string += "\t" * subtask_level + \
-                taskgroup.start.strftime("%-H:%M") + "\n"
+                taskgroup.user_specified_start.strftime("%-H:%M") + "\n"
         for task in taskgroup.tasks:
-            string += convert_task_to_string(task, subtask_level)
-        if taskgroup.end is not None:
+            overlap_time = default_overlap_time
+            if tgidx < len(taskgroups)-1:
+                # see if task is overlapping between intervals
+                if overlap_time:
+                    overlap_time = min(taskgroups[tgidx+1].start, overlap_time)
+                else:
+                    overlap_time = taskgroups[tgidx+1].start
+            task_str = convert_task_to_string(
+                task, subtask_level, overlap_time)
+            string += task_str
+        if taskgroup.user_specified_end is not None:
             string += "\t" * subtask_level + \
-                taskgroup.end.strftime("%-H:%M") + "\n"
+                taskgroup.user_specified_end.strftime("%-H:%M") + "\n"
         output.append(string)
     return "\n".join(output)
 
@@ -119,8 +140,8 @@ def process_task_line(line: str) -> tuple[Optional[Task], int]:
         end_diff,
     ) = matches[0]
     minutes = process_timedelta_to_mins(minutes)
-    start = process_time_to_datetime_now(start_time)
-    end = process_time_to_datetime_now(end_time)
+    start = process_time_to_datetime(start_time)
+    end = process_time_to_datetime(end_time)
     start_diff = (
         None
         if start_diff == ""
@@ -185,7 +206,8 @@ def _process_taskgroups(
                     subtaskgroups=_process_taskgroups(sublines_with_level),
                     notes=notes,
                 )
-                taskgroups.append(TaskGroup(tasks, start=start, end=item))
+                taskgroups.append(
+                    TaskGroup(tasks, user_specified_start=start, user_specified_end=item))
                 notes = ""
                 sublines_with_level = []
 
@@ -200,7 +222,8 @@ def _process_taskgroups(
                     subtaskgroups=_process_taskgroups(sublines_with_level),
                     notes=notes,
                 )
-                taskgroups.append(TaskGroup(tasks, start=start, end=end))
+                taskgroups.append(
+                    TaskGroup(tasks, user_specified_start=start, user_specified_end=end))
                 sublines_with_level = []
                 notes = ""
             assert not sublines_with_level
@@ -216,7 +239,8 @@ def _process_taskgroups(
             subtaskgroups=_process_taskgroups(sublines_with_level),
             notes=notes,
         )
-        taskgroups.append(TaskGroup(tasks, start=start, end=end))
+        taskgroups.append(
+            TaskGroup(tasks, user_specified_start=start, user_specified_end=end))
     return taskgroups
 
 
@@ -237,7 +261,7 @@ def read_taskgroups(filename: str, default_datetime: Optional[datetime] = None) 
             num_tabs, specified_time_str = re.findall(
                 r"(\t+)?({0})".format(TIME_FORMAT), line
             )[0]
-            specified_time = process_time_to_datetime_now(
+            specified_time = process_time_to_datetime(
                 specified_time_str, default_datetime)
             lines_with_level.append((specified_time, len(num_tabs)))
             level = len(num_tabs)

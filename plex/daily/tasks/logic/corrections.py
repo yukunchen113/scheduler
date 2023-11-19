@@ -5,7 +5,7 @@ from typing import Optional
 from plex.daily.tasks import Task, TaskGroup
 from plex.daily.timing import TimingConfig
 from plex.daily.tasks.logic.calculations import calculate_times_in_taskgroup_list
-from plex.daily.tasks.logic.conversions import get_taskgroup_from_timing_configs
+from plex.daily.tasks.logic.conversions import get_taskgroups_from_timing_configs
 
 
 def correct_timing_in_taskgroups(
@@ -117,7 +117,7 @@ def sync_taskgroups_with_timing(
 ) -> list[TaskGroup]:
     # additional timings - add to end
     timing_tasks: list[Task] = [
-        k for k in get_taskgroup_from_timing_configs(timings).tasks
+        task for taskg in get_taskgroups_from_timing_configs(timings) for task in taskg.tasks
     ]
     taskgroups = correct_deleted_and_added_timings_in_taskgroup(
         timing_tasks, taskgroups

@@ -2,8 +2,7 @@ from datetime import datetime, timedelta
 from plex.daily.tasks import get_all_tasks_in_taskgroups, DEFAULT_START_TIME
 from plex.daily.tasks.config import read_taskgroups, write_taskgroups
 from plex.daily.tasks.logic import (
-    calculate_times_in_taskgroup,
-    get_taskgroup_from_timing_configs,
+    get_taskgroups_from_timing_configs,
     sync_taskgroups_with_timing,
 )
 from plex.daily.tasks.logic.calculations import calculate_times_in_taskgroup_list
@@ -22,12 +21,12 @@ def process_daily_file(datestr: str, filename: str) -> None:
     date = datetime.strptime(datestr, "%Y-%m-%d")
     date = date.replace(**DEFAULT_START_TIME)
     update_templates_in_file(filename, datestr=datestr)
-    timings = get_timing_from_file(filename)
+    timings = get_timing_from_file(filename, date)
     read_tasks = read_taskgroups(filename, date)
     if not read_tasks:
-        taskgroup = get_taskgroup_from_timing_configs(timings)
-        taskgroup = calculate_times_in_taskgroup(taskgroup, date)
-        tasks_to_write = [taskgroup]
+        taskgroups = get_taskgroups_from_timing_configs(timings)
+        taskgroups = calculate_times_in_taskgroup_list(taskgroups, date)
+        tasks_to_write = taskgroups
     else:
         tasks_to_write = sync_taskgroups_with_timing(timings, read_tasks, date)
     write_taskgroups(tasks_to_write, filename)

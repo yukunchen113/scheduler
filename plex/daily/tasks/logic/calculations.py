@@ -66,12 +66,12 @@ def calculate_tasks_with_start_end_using_end(
 def calculate_times_in_taskgroup(
     taskgroup: TaskGroup, default_start_time: Optional[datetime] = None
 ) -> TaskGroup:
-    if taskgroup.end is not None:
+    if taskgroup.user_specified_end is not None:
         tasks = calculate_tasks_with_start_end_using_end(
-            taskgroup.tasks, taskgroup.end)
+            taskgroup.tasks, taskgroup.user_specified_end)
     else:
         tasks = calculate_tasks_with_start_end_using_start(
-            taskgroup.tasks, taskgroup.start or default_start_time
+            taskgroup.tasks, taskgroup.user_specified_start or default_start_time
         )
     return dataclasses.replace(taskgroup, tasks=tasks)
 
@@ -83,9 +83,8 @@ def calculate_times_in_taskgroup_list(
     start_time = default_start_time
     for taskgroup in taskgroups:
         newtg = calculate_times_in_taskgroup(taskgroup, start_time)
-        if len(newtg.tasks):
-            assert newtg.tasks[-1].start
-            start_time = newtg.tasks[-1].start + \
-                timedelta(minutes=newtg.tasks[-1].time)
+        if not newtg.is_empty:
+            assert newtg.end
+            start_time = newtg.end
             newtgs.append(newtg)
     return newtgs

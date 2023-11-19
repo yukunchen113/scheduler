@@ -18,7 +18,11 @@ def main(date: str, filename: Optional[str] = None, process_daily: bool = False,
         raise ValueError(
             f"Invalid date '{date}' specified. must be in form 'YYYY-MM-DD'")
     if filename is None:
-        filename = os.path.join(DAILY_BASEDIR, date+".txt")
+        filename = os.path.join(DAILY_BASEDIR, date)
+        # backwards compatibility for .txt file:
+        if os.path.exists(filename+".txt"):
+            os.rename(filename+".txt", filename+".ans")
+        filename = filename + ".ans"
     if process_daily:
         if not os.path.exists(filename):
             Path(filename).touch()
