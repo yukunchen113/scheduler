@@ -30,15 +30,20 @@ def get_taskgroups_from_timing_configs(
             for minutes in timing_config.timings
         ]
         if timing_config.set_time:
-            taskgroups.append(
-                TaskGroup(tasks=tasks,
-                          user_specified_start=timing_config.set_time)
-            )
+            if timing_config.set_time.is_start:
+                new_taskgroup = TaskGroup(tasks=tasks,
+                        user_specified_start=timing_config.set_time.datetime)
+            else:
+                new_taskgroup = TaskGroup(tasks=tasks,
+                        user_specified_end=timing_config.set_time.datetime)
+
+            taskgroups.append(new_taskgroup)
             tasks = []
-    if taskgroups and tasks:
-        taskgroups[-1].tasks+=tasks
-    elif tasks:
-        taskgroups.append(TaskGroup(tasks))
+    if tasks:
+        if not taskgroups:
+            taskgroups.append(TaskGroup(tasks))
+        else:
+            taskgroups[-1].tasks+=tasks
 
     # only sort the time specified taskgroups:
     timed_tgs, timed_tg_idx = [], []

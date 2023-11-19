@@ -21,7 +21,7 @@ def process_daily_file(datestr: str, filename: str) -> None:
     date = datetime.strptime(datestr, "%Y-%m-%d")
     date = date.replace(**DEFAULT_START_TIME)
     update_templates_in_file(filename, datestr=datestr)
-    timings = get_timing_from_file(filename)
+    timings = get_timing_from_file(filename, date)
     read_tasks = read_taskgroups(filename, date)
     if not read_tasks:
         taskgroups = get_taskgroups_from_timing_configs(timings)

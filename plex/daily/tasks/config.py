@@ -38,7 +38,7 @@ def prep_tasks_section(filename: str) -> list[str]:
     return towrite
 
 
-def convert_task_to_string(task: Task, subtask_level: int = 0, is_warning_color: bool = False) -> str:
+def convert_task_to_string(task: Task, subtask_level: int = 0, overlap_time: Optional[datetime] = None) -> str:
     assert task.start is not None
     assert task.end is not None
     start_time = task.start.strftime("%-H:%M")
@@ -55,7 +55,7 @@ def convert_task_to_string(task: Task, subtask_level: int = 0, is_warning_color:
     )
     subtask_indentation = "\t" * subtask_level
     wc_begin = wc_end = ""
-    if is_warning_color:
+    if overlap_time is not None and overlap_time < task.end:
         wc_begin, wc_end = f"\033[{OVERLAP_COLOR}", '\033[0m'
     output = (
         f"{start_diff}\t{subtask_indentation}"
@@ -67,12 +67,12 @@ def convert_task_to_string(task: Task, subtask_level: int = 0, is_warning_color:
     )
     output += task.notes
     output += convert_taskgroups_to_string(
-        task.subtaskgroups, subtask_level + 1)
+        task.subtaskgroups, subtask_level + 1, overlap_time)
     return output
 
 
 def convert_taskgroups_to_string(
-    taskgroups: list[TaskGroup], subtask_level: int = 0
+    taskgroups: list[TaskGroup], subtask_level: int = 0, default_overlap_time: Optional[datetime] = None
 ) -> str:
     output = []
     for tgidx, taskgroup in enumerate(taskgroups):
@@ -81,12 +81,15 @@ def convert_taskgroups_to_string(
             string += "\t" * subtask_level + \
                 taskgroup.user_specified_start.strftime("%-H:%M") + "\n"
         for task in taskgroup.tasks:
-            is_overlapped_task = False
+            overlap_time = default_overlap_time
             if tgidx < len(taskgroups)-1:
                 # see if task is overlapping between intervals
-                is_overlapped_task = taskgroups[tgidx+1].start < task.end
+                if overlap_time:
+                    overlap_time = min(taskgroups[tgidx+1].start, overlap_time)
+                else:
+                    overlap_time = taskgroups[tgidx+1].start
             task_str = convert_task_to_string(
-                task, subtask_level, is_overlapped_task)
+                task, subtask_level, overlap_time)
             string += task_str
         if taskgroup.user_specified_end is not None:
             string += "\t" * subtask_level + \
