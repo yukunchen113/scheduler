@@ -51,7 +51,7 @@ def get_taskgroups_from_timing_configs(
         if taskgroup.start:
             timed_tgs.append(taskgroup)
             timed_tg_idx.append(tgidx)
-    timed_tgs = sorted(timed_tgs, key=lambda x: x.start or datetime.now())
+    timed_tgs = sorted(timed_tgs, key=lambda x: x.start or datetime.now().astimezone())
     for idx, taskgroup in zip(timed_tg_idx, timed_tgs):
         taskgroups[idx] = taskgroup
     return taskgroups

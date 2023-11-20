@@ -22,7 +22,7 @@ def get_calendar():
     return GoogleCalendar(email)
 
 
-def generate_event_id(additional_id: str = ""):
+def generate_event_id(additional_id: str = "") -> str:
     event_id = CALENDAR_EVENT_IDENTIFIER + additional_id + \
         "".join([random.choice(EVENT_ID_ENCODING)
                 for _ in range(GENERATED_EVENT_ID_LENGTH)])
@@ -30,26 +30,43 @@ def generate_event_id(additional_id: str = ""):
     return event_id
 
 
-def is_event_is_plex_generated_event(event: Event, additional_id: str = ""):
+def is_event_is_plex_generated_event(event: Event, additional_id: str = "") -> bool:
     return event.id.startswith(CALENDAR_EVENT_IDENTIFIER + additional_id)
 
 
-def create_calendar_event(summary: str, start: datetime, end: datetime, notes: str = "", date_id: str = ""):
+def create_calendar_event(summary: str, start: datetime, end: datetime, notes: str = "", date_id: str = "") -> str:
+    event_id = generate_event_id(date_id)
     event = Event(summary=summary,
                   start=start,
                   end=end,
-                  event_id=generate_event_id(date_id),
+                  event_id=event_id,
                   minutes_before_popup_reminder=0,
                   description=notes
                   )
     get_calendar().add_event(event)
+    return event_id
 
 
-def get_all_plex_calendar_events(min_date: datetime, date_id: str = ""):
+def update_calendar_event(event_id: str, summary: str, start: datetime, end: datetime, notes: str = "", date_id: str = "") -> None:
+    event = Event(summary=summary,
+                  start=start,
+                  end=end,
+                  event_id=event_id,
+                  minutes_before_popup_reminder=0,
+                  description=notes
+                  )
+    get_calendar().update_event(event)
+
+
+def get_all_plex_calendar_events(min_date: datetime, date_id: str = "") -> list[Event]:
     events = [i for i in get_calendar().get_events(time_min=min_date)
               if is_event_is_plex_generated_event(i, date_id)]
     return events
 
 
-def delete_calendar_event(event: Event):
+def get_event(event_id: str) -> Event:
+    return get_calendar().get_event(event_id)
+
+
+def delete_calendar_event(event: Event = None, ) -> None:
     get_calendar().delete_event(event)
