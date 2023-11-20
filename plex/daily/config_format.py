@@ -20,7 +20,7 @@ def process_time_to_datetime(timestr: str, default_datetime: Optional[datetime] 
         extra_hr = 12
         ptimestr = ptimestr.replace("pm", "")
     if default_datetime is None:
-        output = datetime.now()
+        output = datetime.now().astimezone()
     else:
         output = default_datetime
     timelist = ptimestr.split(":")

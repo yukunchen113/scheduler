@@ -10,7 +10,7 @@ def calculate_tasks_with_start_end_using_start(
     tasks: list[Task], default_start_time: Optional[datetime] = None
 ) -> list[Task]:
     if default_start_time is None:
-        start_time = datetime.now()
+        start_time = datetime.now().astimezone()
         start_time = start_time.replace(**DEFAULT_START_TIME)
     else:
         start_time = default_start_time
