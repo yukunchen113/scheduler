@@ -81,16 +81,10 @@ def update_calendar_with_tasks(tasks: list[Task], datestr: str) -> dict[str, Tas
                 assert new_task.start and new_task.end
                 update_calendar_event(event_id, summary=task.name, start=new_task.start,
                                       end=new_task.end, notes=task.notes, date_id=date_id)
-        elif event_id in cal_event_ids:
-            print(
-                "Deleting tasks that are cached but not latest config."
-            )
-            # delete events that aren't in taskstocreate
-            delete_calendar_event(get_event(event_id))
     task_mapping = new_task_mapping
     if len(cal_event_ids):
         print(
-            f"Deleting {len(cal_event_ids)} tasks that are in the calendar but not cached."
+            f"Deleting {len(cal_event_ids)} tasks that are in the calendar but not in latest config"
         )
     for event_id in cal_event_ids:
         # delete events that are in the cal but not in task_mapping
