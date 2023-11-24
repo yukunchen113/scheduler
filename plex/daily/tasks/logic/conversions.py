@@ -1,12 +1,11 @@
 from datetime import datetime
-from typing import Optional
 
 from plex.daily.tasks import Task, TaskGroup
-from plex.daily.timing import TimingConfig
+from plex.daily.timing.base import TimingConfig
 
 
 def get_taskgroups_from_timing_configs(
-    timing_configs: list[TimingConfig]
+    timing_configs: list[TimingConfig],
 ) -> list[TaskGroup]:
     taskgroups: list[TaskGroup] = []
     tasks: list[Task] = []
@@ -31,11 +30,13 @@ def get_taskgroups_from_timing_configs(
         ]
         if timing_config.set_time:
             if timing_config.set_time.is_start:
-                new_taskgroup = TaskGroup(tasks=tasks,
-                        user_specified_start=timing_config.set_time.datetime)
+                new_taskgroup = TaskGroup(
+                    tasks=tasks, user_specified_start=timing_config.set_time.datetime
+                )
             else:
-                new_taskgroup = TaskGroup(tasks=tasks,
-                        user_specified_end=timing_config.set_time.datetime)
+                new_taskgroup = TaskGroup(
+                    tasks=tasks, user_specified_end=timing_config.set_time.datetime
+                )
 
             taskgroups.append(new_taskgroup)
             tasks = []
@@ -43,7 +44,7 @@ def get_taskgroups_from_timing_configs(
         if not taskgroups:
             taskgroups.append(TaskGroup(tasks))
         else:
-            taskgroups[-1].tasks+=tasks
+            taskgroups[-1].tasks += tasks
 
     # only sort the time specified taskgroups:
     timed_tgs, timed_tg_idx = [], []

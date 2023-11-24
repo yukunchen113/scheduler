@@ -1,6 +1,10 @@
 import re
 from typing import Optional
 from datetime import datetime
+import os
+from pathlib import Path
+
+DAILY_BASEDIR = "daily"
 
 SPLITTER = "-------------"
 
@@ -11,29 +15,16 @@ TIME_FORMAT = r"\d\d?(?::\d\d)?(?:am|pm|PM|AM)?"
 def process_time_to_datetime(timestr: str, default_datetime: Optional[datetime] = None):
     if re.fullmatch(TIME_FORMAT, timestr) is None:
         raise ValueError(f"Invalid format: '{timestr}'")
-    ptimestr = timestr.lower()
-    extra_hr = None
-    if ptimestr.endswith("am"):
-        extra_hr = 0
-        ptimestr = ptimestr.replace("am", "")
-    elif ptimestr.endswith("pm"):
-        extra_hr = 12
-        ptimestr = ptimestr.replace("pm", "")
+    timestr = timestr.lower()
+    if "am" in timestr or "pm" in timestr:
+        time = datetime.strptime(timestr, "%I:%M%p").astimezone()
+    else:
+        time = datetime.strptime(timestr, "%H:%M").astimezone()
     if default_datetime is None:
         output = datetime.now().astimezone()
     else:
         output = default_datetime
-    timelist = ptimestr.split(":")
-    hour = int(timelist[0])
-    if not extra_hr is None:
-        if hour > 12:
-            raise ValueError(f"Invalid time: '{timestr}'")
-        hour += extra_hr
-    if len(timelist) > 1:
-        minute = int(timelist[1])
-    else:
-        minute = 0
-    return output.replace(microsecond=0, second=0, minute=minute, hour=hour)
+    return output.replace(microsecond=0, second=0, minute=time.minute, hour=time.hour)
 
 
 def process_timedelta_to_mins(timedelta_str: str) -> int:
@@ -65,3 +56,18 @@ def add_splitter(filename: str) -> None:
                 return
     with open(filename, "a") as f:
         f.write(f"\n{SPLITTER}\n")
+
+
+def make_daily_filename(filename: str, is_create_file: bool = False) -> str:
+    assert (
+        not "." in filename
+    ), "Specify filename without extension. Filename must not contain '.'"
+    filename = os.path.join(DAILY_BASEDIR, filename)
+    # backwards compatibility for .txt file:
+    if os.path.exists(filename + ".txt"):
+        os.rename(filename + ".txt", filename + ".ans")
+    filename = filename + ".ans"
+    if is_create_file:
+        if not os.path.exists(filename):
+            Path(filename).touch()
+    return filename

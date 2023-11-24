@@ -68,7 +68,8 @@ def calculate_times_in_taskgroup(
 ) -> TaskGroup:
     if taskgroup.user_specified_end is not None:
         tasks = calculate_tasks_with_start_end_using_end(
-            taskgroup.tasks, taskgroup.user_specified_end)
+            taskgroup.tasks, taskgroup.user_specified_end
+        )
     else:
         tasks = calculate_tasks_with_start_end_using_start(
             taskgroup.tasks, taskgroup.user_specified_start or default_start_time
