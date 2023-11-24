@@ -17,7 +17,10 @@ def process_time_to_datetime(timestr: str, default_datetime: Optional[datetime] 
         raise ValueError(f"Invalid format: '{timestr}'")
     timestr = timestr.lower()
     if "am" in timestr or "pm" in timestr:
-        time = datetime.strptime(timestr, "%I:%M%p").astimezone()
+        if ":" in timestr:
+            time = datetime.strptime(timestr, "%I:%M%p").astimezone()
+        else:
+            time = datetime.strptime(timestr, "%I%p").astimezone()
     else:
         time = datetime.strptime(timestr, "%H:%M").astimezone()
     if default_datetime is None:
