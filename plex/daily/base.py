@@ -3,7 +3,12 @@ import math
 import time
 import os
 import pickle
-from plex.daily.tasks import get_all_tasks_in_taskgroups, DEFAULT_START_TIME, Task, TaskGroup
+from plex.daily.tasks import (
+    get_all_tasks_in_taskgroups,
+    DEFAULT_START_TIME,
+    Task,
+    TaskGroup,
+)
 from plex.daily.tasks.base import update_taskgroups_with_changes
 from plex.daily.tasks.config import read_taskgroups, write_taskgroups
 from plex.daily.tasks.logic import (
@@ -18,7 +23,7 @@ from plex.calendar import (
     create_calendar_event,
     delete_calendar_event,
     get_event,
-    update_calendar_event
+    update_calendar_event,
 )
 
 CACHE_FILE = "cache_files/calendar_cache.pickle"
@@ -65,8 +70,12 @@ def update_calendar_with_tasks(tasks: list[Task], datestr: str) -> dict[str, Tas
     date_id = datestr.replace("-", "")
     date = datetime.strptime(datestr, "%Y-%m-%d").astimezone()
     date = date.replace(**DEFAULT_START_TIME)
-    cal_event_ids = [i.event_id for i in get_all_plex_calendar_events(
-        date-timedelta(days=10), date_id=date_id)]
+    cal_event_ids = [
+        i.event_id
+        for i in get_all_plex_calendar_events(
+            date - timedelta(days=10), date_id=date_id
+        )
+    ]
 
     # delete tasks that don't exist in task_mapping
     # filter out tasks that have changed
@@ -79,8 +88,14 @@ def update_calendar_with_tasks(tasks: list[Task], datestr: str) -> dict[str, Tas
             new_task_mapping[event_id] = new_task
             if task.start != new_task.start or task.end != new_task.end:
                 assert new_task.start and new_task.end
-                update_calendar_event(event_id, summary=task.name, start=new_task.start,
-                                      end=new_task.end, notes=task.notes, date_id=date_id)
+                update_calendar_event(
+                    event_id,
+                    summary=task.name,
+                    start=new_task.start,
+                    end=new_task.end,
+                    notes=task.notes,
+                    date_id=date_id,
+                )
     task_mapping = new_task_mapping
     if len(cal_event_ids):
         print(
@@ -98,36 +113,47 @@ def update_calendar_with_tasks(tasks: list[Task], datestr: str) -> dict[str, Tas
     for task in tasks:
         assert task.start and task.end
         try:
-            event_id = create_calendar_event(summary=task.name, start=task.start,
-                                             end=task.end, notes=task.notes, date_id=date_id)
+            event_id = create_calendar_event(
+                summary=task.name,
+                start=task.start,
+                end=task.end,
+                notes=task.notes,
+                date_id=date_id,
+            )
         except Exception as exc:
-            print(
-                f"Unable to add task '{task}'. Exception: {str(exc)}")
+            print(f"Unable to add task '{task}'. Exception: {str(exc)}")
         task_mapping[event_id] = task
 
     save_to_cache(task_mapping, datestr)
     return task_mapping
 
 
-def get_updates_from_calendar(task_mapping: dict[str, Task]) -> dict[str, dict[str, int]]:
+def get_updates_from_calendar(
+    task_mapping: dict[str, Task]
+) -> dict[str, dict[str, int]]:
     # get new diffs
     changes = {}
     for event_id, task in task_mapping.items():
         assert task.start and task.end
         event = get_event(event_id)
-        start_diff = math.ceil((event.start - (task.start -
-                                               timedelta(minutes=task.start_diff or 0))).total_seconds()/60)
-        end_diff = math.ceil((event.end - (task.end -
-                                           timedelta(minutes=task.end_diff or 0))).total_seconds()/60)
+        start_diff = math.ceil(
+            (
+                event.start - (task.start - timedelta(minutes=task.start_diff or 0))
+            ).total_seconds()
+            / 60
+        )
+        end_diff = math.ceil(
+            (
+                event.end - (task.end - timedelta(minutes=task.end_diff or 0))
+            ).total_seconds()
+            / 60
+        )
         if not start_diff and task.start_diff is None:
             start_diff = None
         if not end_diff and task.end_diff is None:
             end_diff = None
         if start_diff != task.start_diff or end_diff != task.end_diff:
-            changes[task.uuid] = {
-                "start_diff": start_diff,
-                "end_diff": end_diff
-            }
+            changes[task.uuid] = {"start_diff": start_diff, "end_diff": end_diff}
     return changes
 
 
@@ -145,7 +171,9 @@ def save_to_cache(data: object, datestr: str):
         pickle.dump(data, file)
 
 
-def update_calendar_with_taskgroups(taskgroups: list[TaskGroup], datestr: str) -> list[TaskGroup]:
+def update_calendar_with_taskgroups(
+    taskgroups: list[TaskGroup], datestr: str
+) -> list[TaskGroup]:
     # modify existing calendar
     tasks = get_all_tasks_in_taskgroups(taskgroups)
     task_mapping = update_calendar_with_tasks(tasks, datestr)
@@ -156,7 +184,9 @@ def update_calendar_with_taskgroups(taskgroups: list[TaskGroup], datestr: str) -
     return []
 
 
-def sync_tasks_to_calendar(datestr: str, filename: str, push_only: bool = False) -> None:
+def sync_tasks_to_calendar(
+    datestr: str, filename: str, push_only: bool = False
+) -> None:
     """Syncs tasks to calendar.
 
     Args:
@@ -173,12 +203,10 @@ def sync_tasks_to_calendar(datestr: str, filename: str, push_only: bool = False)
             update_calendar_with_tasks(tasks, datestr)
             break
         else:
-            taskgroups = update_calendar_with_taskgroups(
-                taskgroups, datestr)
+            taskgroups = update_calendar_with_taskgroups(taskgroups, datestr)
             if taskgroups:
                 # recalculate taskgroups
-                taskgroups = calculate_times_in_taskgroup_list(
-                    taskgroups, date)
+                taskgroups = calculate_times_in_taskgroup_list(taskgroups, date)
                 write_taskgroups(taskgroups, filename)
             else:
                 time.sleep(10)

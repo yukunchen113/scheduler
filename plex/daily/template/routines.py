@@ -31,11 +31,12 @@ in which case {y:x} can be used
 import glob
 import os
 import re
-from typing import Union
 import subprocess
 import os
 
 from plex.daily.config_format import SPLITTER
+from plex.daily.template.config import write_timings_inplace_of_template
+from plex.daily.template.base import ReplacementsType
 
 TEMPLATE_PATTERN = r"\{([^:]*)(?:\:([^:]*))?\}"
 TEMPLATE_BASE_DIR = "routines"
@@ -43,13 +44,16 @@ TEMPLATE_BASE_DIR = "routines"
 DEFAULT_TEMPLATE_SECTION = "__default__:\n"
 
 
-def read_sections_from_template(filename: str, datestr: str) -> dict[str, list[str]]:
-    sections: dict[str, list[str]] = {DEFAULT_TEMPLATE_SECTION: []}
+def read_sections_from_template(filename: str, datestr: str) -> ReplacementsType:
+    sections: ReplacementsType = {DEFAULT_TEMPLATE_SECTION: []}
 
     if filename.endswith(".py"):
         output = subprocess.run(
-            f"python3.10 {filename} --datestr {datestr}".split(), env=os.environ, capture_output=True)
-        lines = [line+"\n" for line in output.stdout.decode().split("\n")]
+            f"python3.10 {filename} --datestr {datestr}".split(),
+            env=os.environ,
+            capture_output=True,
+        )
+        lines = [line + "\n" for line in output.stdout.decode().split("\n")]
     else:
         with open(filename) as f:
             lines = f.readlines()
@@ -66,13 +70,13 @@ def read_sections_from_template(filename: str, datestr: str) -> dict[str, list[s
     return sections
 
 
-def read_template_from_timing(filename: str, datestr: str) -> dict[str, list[str]]:
+def read_template_from_timing(filename: str, datestr: str) -> ReplacementsType:
     """
     reads the {} templates in timing file
     """
     with open(filename) as f:
         lines = f.readlines()
-    templates: dict[str, list[str]] = {}
+    templates: ReplacementsType = {}
     for line in lines:
         if re.match(TEMPLATE_PATTERN, line):
             dfile, section = re.findall(TEMPLATE_PATTERN, line)[0]
@@ -96,25 +100,6 @@ def read_template_from_timing(filename: str, datestr: str) -> dict[str, list[str
     return templates
 
 
-def write_timings_inplace_of_template(
-    filename: str, replacements: dict[str, list[str]]
-) -> None:
-    """replaces the templates with the routines in the timing file"""
-    with open(filename) as f:
-        lines = f.readlines()
-    new_lines = []
-    for idx, line in enumerate(lines):
-        if line.startswith(SPLITTER):
-            new_lines += lines[idx:]
-            break
-        if line in replacements:
-            new_lines += replacements[line]
-        else:
-            new_lines.append(line)
-    with open(filename, "w") as f:
-        f.write("".join(new_lines))
-
-
-def update_templates_in_file(filename: str, datestr: str) -> None:
+def update_routine_templates(filename, datestr):
     replacements = read_template_from_timing(filename, datestr=datestr)
     write_timings_inplace_of_template(filename, replacements)
