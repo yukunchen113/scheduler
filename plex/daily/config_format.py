@@ -15,14 +15,17 @@ TIME_FORMAT = r"\d\d?(?::\d\d)?(?:am|pm|PM|AM)?"
 def process_time_to_datetime(timestr: str, default_datetime: Optional[datetime] = None):
     if re.fullmatch(TIME_FORMAT, timestr) is None:
         raise ValueError(f"Invalid format: '{timestr}'")
-    timestr = timestr.lower()
+    timestr = timestr.lower().replace(" ", "")
     if "am" in timestr or "pm" in timestr:
         if ":" in timestr:
             time = datetime.strptime(timestr, "%I:%M%p").astimezone()
         else:
             time = datetime.strptime(timestr, "%I%p").astimezone()
     else:
-        time = datetime.strptime(timestr, "%H:%M").astimezone()
+        if ":" in timestr:
+            time = datetime.strptime(timestr, "%H:%M").astimezone()
+        else:
+            time = datetime.strptime(timestr, "%H").astimezone()
     if default_datetime is None:
         output = datetime.now().astimezone()
     else:

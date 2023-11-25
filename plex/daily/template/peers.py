@@ -105,9 +105,9 @@ def update_commandline_with_duration(
 def process_command_and_get_replacement(command: CommandSpec) -> ReplacementsType:
     replacements: ReplacementsType = {}
     if command["command"] == "send":
-        print(f"Sending data to {command['target']}")
-        filename = make_daily_filename(command["target"], is_create_file=True)
         if command["lines"]:
+            filename = make_daily_filename(command["target"], is_create_file=True)
+            print(f"Sending data to {command['target']}")
             with open(filename, "r") as f:
                 lines = command["lines"] + ["\n"] + f.readlines()
             with open(filename, "w") as f:
