@@ -13,6 +13,7 @@ SCOPES = ["https://www.googleapis.com/auth/tasks.readonly"]
 
 CREDENTIALS_BASEPATH = os.path.join(os.environ["HOME"], ".credentials/")
 
+
 @cache
 def get_task_service():
     creds = None
@@ -28,7 +29,7 @@ def get_task_service():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                    "/Users/ychen/.credentials/credentials.json", SCOPES
+                "/Users/ychen/.credentials/credentials.json", SCOPES
             )
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
@@ -37,22 +38,24 @@ def get_task_service():
     service = build("tasks", "v1", credentials=creds)
     return service
 
+
 @cache
-def get_tasklist(tasklist_name: str) -> Optional[dict[str,str]]:
+def get_tasklist(tasklist_name: str) -> Optional[dict[str, str]]:
     service = get_task_service()
     # Call the Tasks API
     results = service.tasklists().list().execute()
     tasklists = results.get("items", [])
-    
+
     if tasklists:
         for tasklist in tasklists:
             if tasklist["title"] == tasklist_name:
                 return tasklist
     return None
 
-def get_tasks(tasklist_name: str) -> list[dict[str, Union[list,str]]]:
+
+def get_tasks(tasklist_name: str) -> list[dict[str, Union[list, str]]]:
     """
-    Gets tasks to do. 
+    Gets tasks to do.
     Will look at the first instance of a tasklist named 'tasklist_name'.
     """
 
