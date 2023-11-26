@@ -18,7 +18,7 @@ from plex.daily.tasks.logic import (
 from plex.daily.tasks.logic.calculations import calculate_times_in_taskgroup_list
 from plex.daily.template import update_templates_in_file
 from plex.daily.timing import get_timing_from_file
-from plex.calendar import (
+from plex.calendar_api import (
     get_all_plex_calendar_events,
     create_calendar_event,
     delete_calendar_event,
