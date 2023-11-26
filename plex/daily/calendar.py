@@ -109,8 +109,12 @@ def get_updates_from_calendar(
         event = get_event(event_id)
         start_diff = math.ceil(
             (
-                event.start - (
-                    task.start - timedelta(minutes=task.start_diff or 0) # task start calculation has start_diff in it, we remove that here.          
+                event.start
+                - (
+                    task.start
+                    - timedelta(
+                        minutes=task.start_diff or 0
+                    )  # task start calculation has start_diff in it, we remove that here.
                 )
             ).total_seconds()
             / 60
@@ -118,10 +122,17 @@ def get_updates_from_calendar(
         end_diff = math.ceil(
             (
                 (
-                    event.end - timedelta(minutes=start_diff-(task.start_diff or 0)) # subtract start diff introduced by gcal since google calendar auto updates end given start time updates to try to keep the same duration
-                ) - (
-                    task.end - timedelta(minutes=task.end_diff or 0) # task end calculation has end_diff in it, we remove that here.  
-                )  
+                    event.end
+                    - timedelta(
+                        minutes=start_diff - (task.start_diff or 0)
+                    )  # subtract start diff introduced by gcal since google calendar auto updates end given start time updates to try to keep the same duration
+                )
+                - (
+                    task.end
+                    - timedelta(
+                        minutes=task.end_diff or 0
+                    )  # task end calculation has end_diff in it, we remove that here.
+                )
             ).total_seconds()
             / 60
         )
@@ -146,6 +157,7 @@ def save_to_cache(data: object, datestr: str):
         os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
     with open(CACHE_FILE, "wb") as file:
         pickle.dump(data, file)
+
 
 def update_calendar_with_taskgroups(
     taskgroups: list[TaskGroup], datestr: str

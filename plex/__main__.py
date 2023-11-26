@@ -30,7 +30,7 @@ def main(
         sync (bool, optional): start up sync server to sync calendar and file, while processing tasks. Defaults to False.
     """
     if date:
-        assert not tomorrow, 'cannot specify tomorrow when date is specified.'
+        assert not tomorrow, "cannot specify tomorrow when date is specified."
         try:
             # validate datestr
             datestr = datetime.datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m-%d")
@@ -39,7 +39,9 @@ def main(
                 f"Invalid datestr '{datestr}' specified. must be in form 'YYYY-MM-DD'"
             )
     elif tomorrow:
-        datestr = (datetime.datetime.today()+datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+        datestr = (datetime.datetime.today() + datetime.timedelta(days=1)).strftime(
+            "%Y-%m-%d"
+        )
     else:
         datestr = datetime.datetime.today().strftime("%Y-%m-%d")
 

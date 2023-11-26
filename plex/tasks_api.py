@@ -53,7 +53,9 @@ def get_tasklist(tasklist_name: str) -> Optional[dict[str, str]]:
     return None
 
 
-def get_tasks(tasklist_name: str, show_completed: bool = False) -> list[dict[str, Union[list, str]]]:
+def get_tasks(
+    tasklist_name: str, show_completed: bool = False
+) -> list[dict[str, Union[list, str]]]:
     """
     Gets tasks to do.
     Will look at the first instance of a tasklist named 'tasklist_name'.
