@@ -53,7 +53,7 @@ def get_tasklist(tasklist_name: str) -> Optional[dict[str, str]]:
     return None
 
 
-def get_tasks(tasklist_name: str) -> list[dict[str, Union[list, str]]]:
+def get_tasks(tasklist_name: str, show_completed: bool = False) -> list[dict[str, Union[list, str]]]:
     """
     Gets tasks to do.
     Will look at the first instance of a tasklist named 'tasklist_name'.
@@ -66,4 +66,6 @@ def get_tasks(tasklist_name: str) -> list[dict[str, Union[list, str]]]:
         return []
     results = service.tasks().list(tasklist=tasklist["id"]).execute()
     tasks = results.get("items", [])
+    if not show_completed:
+        tasks = [task for task in tasks if task["status"] == "needsAction"]
     return tasks
