@@ -93,8 +93,14 @@ def get_peer_commands(filename: str) -> tuple[list[str], list[CommandSpec]]:
 def update_commandline_with_duration(
     command: CommandSpec, return_time_range: bool = False
 ) -> str:
+    # check if is datestr, if it is, then use that as datestr otherwise, use today.
+    try:
+        # validate datestr
+        datestr = datetime.strptime(command["target"], "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        datestr = datetime.today().strftime("%Y-%m-%d")
     total_time_str = evaluate_config_duration(
-        command["target"], datetime.today().strftime("%Y-%m-%d"), return_time_range
+        command["target"], datestr, return_time_range
     )
     target, commandstr = re.findall(COMMAND_PATTERN, command["commandline"])[0]
     if commandstr:
