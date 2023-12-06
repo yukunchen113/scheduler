@@ -23,7 +23,7 @@ def evaluate_config_duration(
         return "empty"
     date = datetime.strptime(datestr, "%Y-%m-%d").astimezone()
     date = date.replace(**DEFAULT_START_TIME)
-    update_routine_templates(filename, datestr)
+    update_routine_templates(filename, datestr, is_main_file=False)
     timings = get_timing_from_file(filename, date)
     read_tasks = read_taskgroups(filename, date)
     if not read_tasks:

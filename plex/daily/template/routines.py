@@ -44,15 +44,19 @@ TEMPLATE_BASE_DIR = "routines"
 DEFAULT_TEMPLATE_SECTION = "__default__:\n"
 
 
-def read_sections_from_template(filename: str, datestr: str) -> ReplacementsType:
+def read_sections_from_template(filename: str, datestr: str, is_main_file:bool) -> ReplacementsType:
     sections: ReplacementsType = {DEFAULT_TEMPLATE_SECTION: []}
-
+    command = f"python3.10 {filename} --datestr {datestr}"
+    if is_main_file:
+        command += " --is_main_file"
     if filename.endswith(".py"):
         output = subprocess.run(
-            f"python3.10 {filename} --datestr {datestr}".split(),
+            command.split(),
             env=os.environ,
             capture_output=True,
         )
+        if output.returncode:
+            print(output.stderr.decode())
         lines = [line + "\n" for line in output.stdout.decode().split("\n")]
     else:
         with open(filename) as f:
@@ -70,7 +74,7 @@ def read_sections_from_template(filename: str, datestr: str) -> ReplacementsType
     return sections
 
 
-def read_template_from_timing(filename: str, datestr: str) -> ReplacementsType:
+def read_template_from_timing(filename: str, datestr: str, is_main_file:bool) -> ReplacementsType:
     """
     reads the {} templates in timing file
     """
@@ -89,7 +93,7 @@ def read_template_from_timing(filename: str, datestr: str) -> ReplacementsType:
                 )
                 continue
             file = files[0]
-            tsections = read_sections_from_template(file, datestr)
+            tsections = read_sections_from_template(file, datestr, is_main_file)
             if section:
                 timing_lines = tsections[section]
             else:
@@ -100,6 +104,6 @@ def read_template_from_timing(filename: str, datestr: str) -> ReplacementsType:
     return templates
 
 
-def update_routine_templates(filename, datestr):
-    replacements = read_template_from_timing(filename, datestr=datestr)
+def update_routine_templates(filename, datestr, is_main_file=False):
+    replacements = read_template_from_timing(filename, datestr=datestr, is_main_file=is_main_file)
     write_timings_inplace_of_template(filename, replacements)

@@ -146,17 +146,24 @@ def get_updates_from_calendar(
 
 
 def load_from_cache(datestr: str):
-    if not os.path.exists(CACHE_FILE):
+    cache_file = CACHE_FILE+datestr
+    if not os.path.exists(cache_file):
         return {}
-    with open(CACHE_FILE, "rb") as file:
+    with open(cache_file, "rb") as file:
         return pickle.load(file)
 
 
 def save_to_cache(data: object, datestr: str):
-    if not os.path.exists(CACHE_FILE):
-        os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
-    with open(CACHE_FILE, "wb") as file:
+    cache_file = CACHE_FILE+datestr
+    cache_basepath = os.path.dirname(cache_file)
+    if not os.path.exists(cache_file):
+        os.makedirs(cache_basepath, exist_ok=True)
+    with open(cache_file, "wb") as file:
         pickle.dump(data, file)
+    current_files = [os.path.join(cache_basepath, file) for file in os.listdir(cache_basepath)]
+    current_files = sorted(current_files, key = lambda file: os.path.getmtime(file))
+    while len(current_files) > 10:
+        os.remove(current_files.pop(0))
 
 
 def update_calendar_with_taskgroups(
