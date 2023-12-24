@@ -78,6 +78,21 @@ class TaskGroup:
         return not len(self.tasks)
 
 
+def add_tasks(taskgroup: TaskGroup, tasks: list[Task]):
+    """Adds tasks to taskgroup."""
+    if taskgroup.user_specified_end:
+        taskgroup.tasks = tasks + taskgroup.tasks
+    else:
+        taskgroup.tasks += tasks
+    return taskgroup
+
+def pop_task(taskgroup: TaskGroup):
+    if taskgroup.user_specified_end:
+        task = taskgroup.tasks.pop(0)
+    else:
+        task = taskgroup.tasks.pop()
+    return task
+
 def get_all_tasks_in_taskgroups(taskgroups: list[TaskGroup]) -> list[Task]:
     """Gets all tasks and subtasks in taskgroups"""
     tasks = []

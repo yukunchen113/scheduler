@@ -10,6 +10,7 @@ from plex.daily.tasks.logic import (
     sync_taskgroups_with_timing,
     calculate_times_in_taskgroup_list,
 )
+from plex.daily.tasks.logic.corrections import append_overlap_tasks_to_end
 from plex.daily.timing import get_timing_from_file
 from plex.daily.template.routines import update_routine_templates
 from plex.daily.config_format import make_daily_filename, process_mins_to_timedelta
@@ -29,6 +30,7 @@ def evaluate_config_duration(
     if not read_tasks:
         taskgroups = get_taskgroups_from_timing_configs(timings)
         taskgroups = calculate_times_in_taskgroup_list(taskgroups, date)
+        taskgroups = append_overlap_tasks_to_end(taskgroups)
     else:
         taskgroups = sync_taskgroups_with_timing(timings, read_tasks, date)
     if not taskgroups:
