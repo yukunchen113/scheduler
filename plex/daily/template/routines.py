@@ -44,11 +44,13 @@ TEMPLATE_BASE_DIR = "routines"
 DEFAULT_TEMPLATE_SECTION = "__default__:\n"
 
 
-def read_sections_from_template(filename: str, datestr: str, is_main_file:bool) -> ReplacementsType:
+def read_sections_from_template(filename: str, datestr: str, is_main_file:bool, options:str="") -> ReplacementsType:
     sections: ReplacementsType = {DEFAULT_TEMPLATE_SECTION: []}
     command = f"python3.10 {filename} --datestr {datestr}"
     if is_main_file:
         command += " --is_main_file"
+    if options:
+        command += f" --options {options}"
     if filename.endswith(".py"):
         output = subprocess.run(
             command.split(),
@@ -93,7 +95,7 @@ def read_template_from_timing(filename: str, datestr: str, is_main_file:bool) ->
                 )
                 continue
             file = files[0]
-            tsections = read_sections_from_template(file, datestr, is_main_file)
+            tsections = read_sections_from_template(file, datestr, is_main_file, section)
             if section:
                 timing_lines = tsections[section]
             else:
