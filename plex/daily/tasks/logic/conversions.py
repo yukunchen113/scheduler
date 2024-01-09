@@ -11,10 +11,7 @@ def get_taskgroups_from_timing_configs(
     tasks: list[Task] = []
     for timing_config in timing_configs:
         if timing_config.set_time and tasks:
-            if not taskgroups:
-                taskgroups.append(TaskGroup(tasks=tasks))
-            else:
-                taskgroups[-1].tasks += tasks
+            taskgroups.append(TaskGroup(tasks=tasks))
             tasks = []
         tasks += [
             Task(
@@ -41,10 +38,7 @@ def get_taskgroups_from_timing_configs(
             taskgroups.append(new_taskgroup)
             tasks = []
     if tasks:
-        if not taskgroups:
-            taskgroups.append(TaskGroup(tasks))
-        else:
-            taskgroups[-1].tasks += tasks
+        taskgroups.append(TaskGroup(tasks))
 
     # only sort the time specified taskgroups:
     timed_tgs, timed_tg_idx = [], []

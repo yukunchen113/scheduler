@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from plex.daily.tasks import Task, TaskGroup
+from plex.daily.tasks.base import add_tasks, pop_task
 from plex.daily.timing.base import TimingConfig
 from plex.daily.tasks.logic.calculations import calculate_times_in_taskgroup_list
 from plex.daily.tasks.logic.conversions import get_taskgroups_from_timing_configs
@@ -131,3 +132,38 @@ def sync_taskgroups_with_timing(
     # recalculate start and ends
     taskgroups = calculate_times_in_taskgroup_list(taskgroups, start_datetime)
     return taskgroups
+
+
+def append_overlap_tasks_to_end(taskgroups: list[TaskGroup]) -> list[TaskGroup]:
+    """
+    Appends the overlapping times to end of taskgroup list
+    """    
+    return taskgroups # not done for now
+    # preprocess
+    for idx,tgroup in enumerate(taskgroups[:-1]):
+        ntgroup = taskgroups[idx+1]
+        assert tgroup.start <= ntgroup.start
+        if tgroup.end > ntgroup.start: # overlap
+            if ntgroup.user_specified_start and tgroup.user_specified_end: # swap
+                taskgroups[idx], taskgroups[idx+1] = ntgroup, tgroup
+    
+    overlap = []
+    for idx,tgroup in enumerate(taskgroups[:-1]):
+        ntgroup = taskgroups[idx+1]
+        while tgroup.tasks and ntgroup.tasks and tgroup.end > ntgroup.start: # overlap detected
+            retain_one_item = not ((len(ntgroup.tasks) == 1 or ntgroup.user_specified_start) and (len(tgroup.tasks) == 1 or tgroup.user_specified_end))
+            # try to pop first
+            if not (tgroup.user_specified_end or len(tgroup.tasks) == 1 and retain_one_item):
+                overlap.append(pop_task(tgroup))
+            # try to pop second
+            if not (ntgroup.user_specified_start or len(ntgroup.tasks) == 1 and retain_one_item):
+                overlap.append(pop_task(tgroup))
+    if overlap:
+        taskgroups.append(TaskGroup(overlap))
+    
+    # remove empty taskgroups
+    return [tgroup for i in taskgroups if tgroup.tasks]
+            
+    
+
+    

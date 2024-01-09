@@ -29,7 +29,7 @@ def process_daily_file(datestr: str, filename: str) -> None:
     """
     date = datetime.strptime(datestr, "%Y-%m-%d").astimezone()
     date = date.replace(**DEFAULT_START_TIME)
-    update_templates_in_file(filename, datestr=datestr)
+    update_templates_in_file(filename, datestr=datestr, is_main_file=True)
     timings = get_timing_from_file(filename, date)
     read_tasks = read_taskgroups(filename, date)
     if not read_tasks:
