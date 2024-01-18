@@ -1,0 +1,6 @@
+gcsa==2.2.0
+google_api_python_client==2.108.0
+google_auth_oauthlib==0.8.0
+protobuf==4.25.2
+setuptools==65.6.3
+typed_argument_parser==1.8.1
