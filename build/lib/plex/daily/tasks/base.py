@@ -34,7 +34,8 @@ class Task:
     # when explicitly specified.
 
     def __post_init__(self):
-        object.__setattr__(self, "uuid", str(uuid.uuid4()))
+        if not self.uuid:
+            object.__setattr__(self, "uuid", str(uuid.uuid1()))
 
     def __eq__(self, __o: object) -> bool:
         return (
