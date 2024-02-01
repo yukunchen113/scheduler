@@ -16,9 +16,9 @@ from plex.calendar_api import (
     get_event,
     update_calendar_event,
 )
+from plex.daily.cache import load_from_cache, save_to_cache
 
-CACHE_FILE = "cache_files/calendar_cache.pickle"
-
+CACHE_FILE = "cache_files/calendar/calendar_cache.pickle"
 
 def update_calendar_with_tasks(tasks: list[Task], datestr: str) -> dict[str, Task]:
     """Syncs tasks with calendar tasks.
@@ -37,7 +37,7 @@ def update_calendar_with_tasks(tasks: list[Task], datestr: str) -> dict[str, Tas
     Returns:
         dict[str, Task]: new updated cache (task_mapping)
     """
-    task_mapping: dict[str, Task] = load_from_cache(datestr)
+    task_mapping: dict[str, Task] = load_from_cache(datestr, CACHE_FILE)
     date_id = datestr.replace("-", "")
     date = datetime.strptime(datestr, "%Y-%m-%d").astimezone()
     date = date.replace(**DEFAULT_START_TIME)
@@ -95,7 +95,7 @@ def update_calendar_with_tasks(tasks: list[Task], datestr: str) -> dict[str, Tas
             print(f"Unable to add task '{task}'. Exception: {str(exc)}")
         task_mapping[event_id] = task
 
-    save_to_cache(task_mapping, datestr)
+    save_to_cache(task_mapping, datestr, CACHE_FILE)
     return task_mapping
 
 
@@ -143,28 +143,6 @@ def get_updates_from_calendar(
         if start_diff != task.start_diff or end_diff != task.end_diff:
             changes[task.uuid] = {"start_diff": start_diff, "end_diff": end_diff}
     return changes
-
-
-def load_from_cache(datestr: str):
-    cache_file = CACHE_FILE+datestr
-    if not os.path.exists(cache_file):
-        return {}
-    with open(cache_file, "rb") as file:
-        return pickle.load(file)
-
-
-def save_to_cache(data: object, datestr: str):
-    cache_file = CACHE_FILE+datestr
-    cache_basepath = os.path.dirname(cache_file)
-    if not os.path.exists(cache_file):
-        os.makedirs(cache_basepath, exist_ok=True)
-    with open(cache_file, "wb") as file:
-        pickle.dump(data, file)
-    current_files = [os.path.join(cache_basepath, file) for file in os.listdir(cache_basepath)]
-    current_files = sorted(current_files, key = lambda file: os.path.getmtime(file))
-    while len(current_files) > 10:
-        os.remove(current_files.pop(0))
-
 
 def update_calendar_with_taskgroups(
     taskgroups: list[TaskGroup], datestr: str

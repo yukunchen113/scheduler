@@ -7,9 +7,8 @@ from tap import tapify
 
 from plex.daily import process_daily_file, sync_tasks_to_calendar
 from plex.daily.config_format import make_daily_filename
-from plex.daily.tasks import DEFAULT_START_TIME
-from plex.daily.tasks.base import convert_to_json
-from plex.daily.tasks.config import read_taskgroups
+from plex.daily.endpoint import get_json_str
+
 DAILY_BASEDIR = "daily"
 
 
@@ -55,9 +54,7 @@ def main(
     if not no_process_daily:
         process_daily_file(datestr, filename)
     if print_json:
-        date = datetime.datetime.strptime(datestr, "%Y-%m-%d").astimezone().replace(**DEFAULT_START_TIME)
-        taskgroups = convert_to_json(read_taskgroups(filename))
-        print(taskgroups)
+        print(get_json_str(datestr, filename))
     if sync:
         assert not push
         if not os.path.exists(filename):
