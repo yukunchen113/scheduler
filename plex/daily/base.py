@@ -16,6 +16,7 @@ from plex.daily.calendar import (
     update_calendar_with_tasks,
     update_calendar_with_taskgroups,
 )
+from plex.daily.tasks.push_notes import sync_tasks_todo
 
 CACHE_FILE = "cache_files/calendar_cache.pickle"
 
@@ -37,6 +38,7 @@ def process_daily_file(datestr: str, filename: str) -> None:
         taskgroups = calculate_times_in_taskgroup_list(taskgroups, date)
     else:
         taskgroups = sync_taskgroups_with_timing(timings, read_tasks, date)
+    sync_tasks_todo(taskgroups)
     write_taskgroups(taskgroups, filename)
 
 
@@ -63,6 +65,7 @@ def sync_tasks_to_calendar(
             if taskgroups:
                 # recalculate taskgroups
                 taskgroups = calculate_times_in_taskgroup_list(taskgroups, date)
+                sync_tasks_todo(taskgroups)
                 write_taskgroups(taskgroups, filename)
             else:
                 time.sleep(10)

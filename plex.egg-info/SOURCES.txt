@@ -20,6 +20,7 @@ plex/daily/endpoint.py
 plex/daily/tasks/__init__.py
 plex/daily/tasks/base.py
 plex/daily/tasks/config.py
+plex/daily/tasks/push_notes.py
 plex/daily/tasks/logic/__init__.py
 plex/daily/tasks/logic/calculations.py
 plex/daily/tasks/logic/conversions.py
