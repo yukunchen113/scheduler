@@ -22,6 +22,8 @@ TIMING_SET_TIME_PATTERN = r"(?:{0})+(?:(?:.+)\(({1})(s|e|S|E)?\))?".format(
     TIMING_PATTERN, TIME_FORMAT
 )
 
+TIMING_UNIQUE_RETRIES = 100
+TIMING_UUID_LENGTH = 4
 
 def process_minutes(input_str: str) -> list[int]:
     matches = re.findall(TIMING_DURATION_PATTERN, input_str)
@@ -32,6 +34,8 @@ def process_minutes(input_str: str) -> list[int]:
         tasks += [minutes] * int(y)
     return tasks
 
+def is_valid_timing_str(string: str):
+    return re.findall(TIMING_DURATION_PATTERN, string)
 
 def process_set_time(
     input_str: str, config_date: Optional[datetime]
@@ -50,12 +54,12 @@ def process_set_time(
         set_time[0][1] not in ["E", "e"],
     )
     
-def indent_line(string):
+def indent_line(string:str ):
     if not string.startswith("-"):
         return "-" + string
     return "\t" + string
 
-def split_desc_and_uuid(raw_description: str):
+def split_desc_and_uuid(raw_description: str, used_uuids: set = set()):
     id_from_desc = re.findall(
         rf"\|((?:{PATTERN_UUID})+)\|", 
         raw_description
@@ -65,7 +69,14 @@ def split_desc_and_uuid(raw_description: str):
         timing_uuid = id_from_desc[0]
     else:
         # set random timing_uuid
-        timing_uuid = make_random_uuid(4)
+        timing_uuid = make_random_uuid(TIMING_UUID_LENGTH)
+        for _ in range(100):
+            if timing_uuid not in used_uuids:
+                break
+            timing_uuid = make_random_uuid(TIMING_UUID_LENGTH)
+        else:
+            raise ValueError(f"Unable to generate unique uuid after {TIMING_UNIQUE_RETRIES} tries")
+        used_uuids.add(timing_uuid)
         
     timing_description = re.findall(
         rf"([^\|]+)(?:\|(?:{PATTERN_UUID})+\|)?", 
@@ -78,12 +89,26 @@ def get_timing_from_lines(
 ) -> list[TimingConfig]:
     output, replaced = _get_timing_from_indexed_lines(
        dict(enumerate(lines)),
-       config_date
+       config_date,
+       gather_existing_uuids_from_lines(lines)
     )
     return output, [line for _,line in sorted(replaced.items())]
 
+def gather_existing_uuids_from_lines(lines):
+    uuids = set()
+    for line in lines:
+        if is_valid_timing_str(line):
+            split_desc_and_uuid(
+                line.split("[")[0].strip(),
+                used_uuids=uuids
+            ) # uuids will be updated
+    return uuids
+    
+
 def _get_timing_from_indexed_lines(
-    lines: dict[int, str], config_date: Optional[datetime] = None
+    lines: dict[int, str],
+    config_date: Optional[datetime] = None,
+    used_uuids: set = set()
 ) -> list[TimingConfig]:
     output: list[TimingConfig] = []
     des, minutes, set_time, raw_timespec = None, None, None, None
@@ -104,7 +129,11 @@ def _get_timing_from_indexed_lines(
             # construct prev timing
             if des is not None and minutes is not None:
                 if subtiming_lines:
-                    subtimings, replaced_sublines = _get_timing_from_indexed_lines(subtiming_lines, config_date)
+                    subtimings, replaced_sublines = _get_timing_from_indexed_lines(
+                        subtiming_lines,
+                        config_date,
+                        used_uuids=used_uuids
+                    )
                     replaced_lines.update({k:indent_line(v) for k,v in replaced_sublines.items()})
                 else:
                     subtimings = None
@@ -119,23 +148,26 @@ def _get_timing_from_indexed_lines(
                 ))
                 
             # start accum next timing
-            minutes = process_minutes(line)
-            set_time = process_set_time(line, config_date)
-            if not minutes:
-                continue
-            des = line.split("[")[0].strip()
-            raw_timespec = line[line.find("["):].strip()
-            tim_des, tim_uuid = split_desc_and_uuid(des)
-            raw_description = f"{tim_des} |{tim_uuid}| "
-            subtiming_lines = None
-            replaced_lines[lidx] = raw_description+raw_timespec+"\n"
+            if is_valid_timing_str(line):
+                minutes = process_minutes(line)
+                set_time = process_set_time(line, config_date)
+                des = line.split("[")[0].strip()
+                raw_timespec = line[line.find("["):].strip()
+                tim_des, tim_uuid = split_desc_and_uuid(des, used_uuids)
+                raw_description = f"{tim_des} |{tim_uuid}| "
+                subtiming_lines = None
+                replaced_lines[lidx] = raw_description+raw_timespec+"\n"
             
         
             
     # construct last timing
     if des is not None and minutes is not None:
         if subtiming_lines:
-            subtimings, replaced_sublines = _get_timing_from_indexed_lines(subtiming_lines, config_date)
+            subtimings, replaced_sublines = _get_timing_from_indexed_lines(
+                subtiming_lines,
+                config_date,
+                used_uuids=used_uuids
+            )
             replaced_lines.update({k:indent_line(v) for k,v in replaced_sublines.items()})
         else:
             subtimings = None
