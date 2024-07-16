@@ -107,13 +107,14 @@ def convert_taskgroups_to_string(
 
 
 def write_taskgroups(taskgroups: list[TaskGroup], filename: str) -> None:
-    towrite = prep_tasks_section(filename)
-    # get tasks
-    towrite.append(convert_taskgroups_to_string(taskgroups))
-    # write
-    with open(filename, "w") as f:
-        for line in towrite:
-            f.write(line)
+    if taskgroups:
+        towrite = prep_tasks_section(filename)
+        # get tasks
+        towrite.append(convert_taskgroups_to_string(taskgroups))
+        # write
+        with open(filename, "w") as f:
+            for line in towrite:
+                f.write(line)
 
 
 def get_lines_after_splitter(filename: str) -> list[str]:
