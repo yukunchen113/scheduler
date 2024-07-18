@@ -5,7 +5,7 @@ from plex.daily.timing.process import get_timing_from_lines
 from plex.daily.config_format import SPLITTER
 
 
-def split_all_timing_lines(all_lines: list[str]) -> list[str]:
+def split_lines_across_splitter(all_lines: list[str]) -> list[str]:
     lines = []
     next_lines = []
     for lidx, line in enumerate(all_lines):
@@ -20,11 +20,10 @@ def split_all_timing_lines(all_lines: list[str]) -> list[str]:
 def get_timing_from_file(
     filename: str, 
     config_date: Optional[datetime] = None,
-    ignore_future: bool = False,
     is_process: bool = True
 ) -> list[TimingConfig]:
     with open(filename) as r:
-        lines, other_lines = split_all_timing_lines(r.readlines())
+        lines, other_lines = split_lines_across_splitter(r.readlines())
     output, new_tim_lines = get_timing_from_lines(lines, config_date)
     
     if is_process:

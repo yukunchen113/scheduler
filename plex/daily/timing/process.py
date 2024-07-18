@@ -54,8 +54,10 @@ def process_set_time(
         set_time[0][1] not in ["E", "e"],
     )
     
-def indent_line(string:str ):
+def indent_line(string:str):
     if not string.startswith("-"):
+        if not string.startswith(" "):
+            string = " " + string
         return "-" + string
     return "\t" + string
 
@@ -111,17 +113,18 @@ def _get_timing_from_indexed_lines(
     used_uuids: set = set()
 ) -> list[TimingConfig]:
     output: list[TimingConfig] = []
+    
     des, minutes, set_time, raw_timespec = None, None, None, None
     tim_des, tim_uuid, raw_description = None, None, None
-    subtiming_lines: Optional[dict[int, str]] = None
     
+    subtiming_lines: Optional[dict[int, str]] = None
     replaced_lines = copy.copy(lines)
     
     for lidx,line in sorted(lines.items()):
         if line.startswith(SPLITTER):
             # splitter
             break
-        elif re.match(r"(?:\t+)?-.*", line):
+        elif re.match(r"(?:\t+)?-\s.*", line):
             if subtiming_lines is None:
                 subtiming_lines = {}
             subtiming_lines[lidx] = line[1:]
@@ -157,6 +160,9 @@ def _get_timing_from_indexed_lines(
                 raw_description = f"{tim_des} |{tim_uuid}| "
                 subtiming_lines = None
                 replaced_lines[lidx] = raw_description+raw_timespec+"\n"
+            else:
+                des, minutes, set_time, raw_timespec = None, None, None, None
+                tim_des, tim_uuid, raw_description = None, None, None
             
         
             
@@ -173,12 +179,12 @@ def _get_timing_from_indexed_lines(
             subtimings = None
         tim_des, tim_uuid = split_desc_and_uuid(des)
         output.append(TimingConfig(
-                    tim_des,
-                    minutes,
-                    subtimings,
-                    set_time,
-                    uuid=tim_uuid,
-                    raw_description=raw_description,
-                    raw_timespec=raw_timespec
-                ))
+            tim_des,
+            minutes,
+            subtimings,
+            set_time,
+            uuid=tim_uuid,
+            raw_description=raw_description,
+            raw_timespec=raw_timespec
+        ))
     return output, replaced_lines

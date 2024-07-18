@@ -42,6 +42,7 @@ class Task:
             type(self) == type(__o)
             and self.name == __o.name
             and self.time == __o.time
+            and self.uuid == __o.uuid
             and self.subtaskgroups == __o.subtaskgroups
             and self.notes == __o.notes
         )

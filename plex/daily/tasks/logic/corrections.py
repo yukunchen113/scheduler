@@ -1,6 +1,7 @@
 import dataclasses
 from datetime import datetime
 from typing import Optional
+from collections import namedtuple
 
 from plex.daily.tasks import Task, TaskGroup
 from plex.daily.tasks.base import add_tasks, pop_task
@@ -17,7 +18,7 @@ def correct_timing_in_taskgroups(
     """
     desired_times: dict[str, list[tuple[int, list[TaskGroup]]]] = {}
     for task in timing_tasks:
-        key = task.name
+        key = task.uuid
         if key not in desired_times:
             desired_times[key] = []
         desired_times[key].append((task.time, task.subtaskgroups))
@@ -25,7 +26,7 @@ def correct_timing_in_taskgroups(
     for taskgroup in taskgroups:
         new_tasks = []
         for task in taskgroup.tasks:
-            key = task.name
+            key = task.uuid
             if key in desired_times and desired_times[key]:
                 task_times = [i[0] for i in desired_times[key]]
                 if task.end_diff:
@@ -57,6 +58,9 @@ def correct_timing_in_taskgroups(
         taskgroup.tasks = new_tasks
     return taskgroups
 
+CarriedOverFields = namedtuple("CarriedOverFields", [
+    "name", "time", "subtaskgroups", "uuid"
+])
 
 def correct_deleted_and_added_timings_in_taskgroup(
     timing_tasks: list[Task], taskgroups: list[TaskGroup]
@@ -64,27 +68,32 @@ def correct_deleted_and_added_timings_in_taskgroup(
     # additional timings - add to end
     # unique key for distinuishing between different tasks are (description, minutes)
     # note there can be more than 1 of the same task
-    timing_tasks_counts: dict[str, list[tuple[int, list[TaskGroup]]]] = {}
+    timing_tasks_counts: dict[str, list[CarriedOverFields]] = {}
     for task in timing_tasks:
-        key = task.name
+        key = task.uuid
         if not key in timing_tasks_counts:
             timing_tasks_counts[key] = []
-        timing_tasks_counts[key].append((task.time, task.subtaskgroups))
+        timing_tasks_counts[key].append(CarriedOverFields(
+            name=task.name,
+            time=task.time, 
+            subtaskgroups=task.subtaskgroups, 
+            uuid=task.uuid
+        ))
 
     for taskgroup in taskgroups:
         new_tasks = []
         for task in taskgroup.tasks:
             # correct subtasks first, as they will affect the unique key
-            key = task.name
+            key = task.uuid
             # deleted timings
-            if not key in timing_tasks_counts or not timing_tasks_counts[key]:
+            if key not in timing_tasks_counts or not timing_tasks_counts[key]:
                 # check if any are missing
                 # subtract last occurances
                 if task.start_diff or task.end_diff:
                     # don't delete already done/started tasks
                     new_tasks.append(task)
             else:
-                _, timing_subtaskgroups = timing_tasks_counts[key].pop(0)
+                timing_subtaskgroups = timing_tasks_counts[key].pop(0).subtaskgroups
                 timing_subtasks = []
                 for timing_subtaskgroup in timing_subtaskgroups:
                     timing_subtasks += timing_subtaskgroup.tasks
@@ -102,9 +111,14 @@ def correct_deleted_and_added_timings_in_taskgroup(
 
     # check if any are added
     extra_tasks = [
-        Task(name=name, time=minutes, subtaskgroups=subtaskgroups)
-        for name, minutes_list in timing_tasks_counts.items()
-        for minutes, subtaskgroups in minutes_list
+        Task(
+            name=name,
+            time=minutes,
+            subtaskgroups=subtaskgroups,
+            uuid=task_uuid
+        )
+        for _, minutes_list in timing_tasks_counts.items()
+        for name, minutes, subtaskgroups, task_uuid in minutes_list
     ]
     if not taskgroups:
         taskgroups = [TaskGroup(tasks=extra_tasks)]

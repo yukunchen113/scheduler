@@ -13,10 +13,18 @@ from plex.daily.config_format import (
 )
 from plex.daily.tasks import Task, TaskGroup
 
+from plex.daily.unique_id import PATTERN_UUID
+
 OVERLAP_COLOR = "91m"
 
-TASK_LINE_FORMAT = r"((?:\+|-){0})?\t(\t+)?(?:\033\[{2})?({1})-({1}):\t(.+) \(({0})\)(?:\033\[0m)?\t?((?:\+|-){0})?".format(
-    TIMEDELTA_FORMAT, TIME_FORMAT, OVERLAP_COLOR
+TASK_LINE_FORMAT = (
+    fr"((?:\+|-){TIMEDELTA_FORMAT})?" # start diff
+    fr"\t(\t+)?(?:\033\[{OVERLAP_COLOR})?" # overlap start
+    fr"({TIME_FORMAT})-({TIME_FORMAT}):" # time range
+    fr"\t(.+) " # task description
+    fr"\(({TIMEDELTA_FORMAT})\)" # task duration
+    fr"(?:\033\[0m)?" # overlap end
+    fr"\t?((?:\+|-){TIMEDELTA_FORMAT})?" # end diff
 )
 
 LINE_TYPE = Union[None, Task, datetime, str]
@@ -61,7 +69,7 @@ def convert_task_to_string(
         f"{start_diff}\t{subtask_indentation}"
         f"{wc_begin}"
         f"{start_time}-{end_time}:"
-        f"\t{task.name} ({process_mins_to_timedelta(task.time)})"
+        f"\t{task.name} |{task.uuid}| ({process_mins_to_timedelta(task.time)})"
         f"{wc_end}"
         f"\t{end_diff}\n"
     )
@@ -132,6 +140,23 @@ def get_lines_after_splitter(filename: str) -> list[str]:
     return lines
 
 
+def split_desc_and_uuid(raw_description: str):
+    id_from_desc = re.findall(
+        rf"\|((?:{PATTERN_UUID})+\|[0-9]+)\|", 
+        raw_description
+    )
+    
+    task_uuid = None
+    if id_from_desc:
+        # get from raw description
+        task_uuid = id_from_desc[0]
+
+    task_description = re.findall(
+        rf"([^\|]+)(?:\|(?:{PATTERN_UUID})+\|[0-9]+\|)?", 
+        raw_description
+    )[0].strip()
+    return task_description, task_uuid
+
 def process_task_line(line: str) -> tuple[Optional[Task], int]:
     matches = re.findall(
         TASK_LINE_FORMAT,
@@ -161,6 +186,10 @@ def process_task_line(line: str) -> tuple[Optional[Task], int]:
         if end_diff == ""
         else process_timedelta_to_mins(end_diff[1:]) * int(end_diff[0] + "1")
     )
+    
+    # process uuid
+    task_des, task_uuid = split_desc_and_uuid(task_des)
+    
     return Task(
         name=task_des,
         time=minutes,
@@ -168,6 +197,7 @@ def process_task_line(line: str) -> tuple[Optional[Task], int]:
         end=end,
         start_diff=start_diff,
         end_diff=end_diff,
+        uuid=task_uuid,
     ), len(subtask_tabs)
 
 
