@@ -142,7 +142,7 @@ def get_lines_after_splitter(filename: str) -> list[str]:
 
 def split_desc_and_uuid(raw_description: str):
     id_from_desc = re.findall(
-        rf"\|((?:{PATTERN_UUID})+\|[0-9]+)\|", 
+        rf"\|((?:{PATTERN_UUID})+:[0-9]+)\|", 
         raw_description
     )
     
@@ -152,7 +152,7 @@ def split_desc_and_uuid(raw_description: str):
         task_uuid = id_from_desc[0]
 
     task_description = re.findall(
-        rf"([^\|]+)(?:\|(?:{PATTERN_UUID})+\|[0-9]+\|)?", 
+        rf"([^\|]+)(?:\|(?:{PATTERN_UUID})+:[0-9]+\|)?", 
         raw_description
     )[0].strip()
     return task_description, task_uuid

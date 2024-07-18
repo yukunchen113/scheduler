@@ -17,7 +17,7 @@ def get_taskgroups_from_timing_configs(
             Task(
                 name=timing_config.task_description,
                 time=minutes,
-                uuid=f"{timing_config.uuid}|{midx}",
+                uuid=f"{timing_config.uuid}:{midx}",
                 subtaskgroups=(
                     []
                     if timing_config.subtimings is None
