@@ -1,4 +1,5 @@
 from datetime import datetime
+from collections import defaultdict
 
 from plex.daily.tasks import Task, TaskGroup
 from plex.daily.timing.base import TimingConfig
@@ -6,6 +7,7 @@ from plex.daily.timing.base import TimingConfig
 
 def get_taskgroups_from_timing_configs(
     timing_configs: list[TimingConfig],
+    uuid_count:dict[str, int] = defaultdict(lambda: 0)
 ) -> list[TaskGroup]:
     taskgroups: list[TaskGroup] = []
     tasks: list[Task] = []
@@ -24,8 +26,9 @@ def get_taskgroups_from_timing_configs(
                     else get_taskgroups_from_timing_configs(timing_config.subtimings)
                 ),
             )
-            for midx, minutes in enumerate(timing_config.timings,0)
+            for midx, minutes in enumerate(timing_config.timings, uuid_count[timing_config.uuid])
         ]
+        uuid_count[timing_config.uuid] += len(timing_config.timings)
         if timing_config.set_time:
             if timing_config.set_time.is_start:
                 new_taskgroup = TaskGroup(

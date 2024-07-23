@@ -17,6 +17,7 @@ plex/daily/cache.py
 plex/daily/calendar.py
 plex/daily/config_format.py
 plex/daily/endpoint.py
+plex/daily/unique_id.py
 plex/daily/tasks/__init__.py
 plex/daily/tasks/base.py
 plex/daily/tasks/config.py
