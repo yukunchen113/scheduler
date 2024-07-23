@@ -17,13 +17,14 @@ def get_taskgroups_from_timing_configs(
             Task(
                 name=timing_config.task_description,
                 time=minutes,
+                uuid=f"{timing_config.uuid}:{midx}",
                 subtaskgroups=(
                     []
                     if timing_config.subtimings is None
                     else get_taskgroups_from_timing_configs(timing_config.subtimings)
                 ),
             )
-            for minutes in timing_config.timings
+            for midx, minutes in enumerate(timing_config.timings,0)
         ]
         if timing_config.set_time:
             if timing_config.set_time.is_start:

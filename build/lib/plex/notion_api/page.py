@@ -146,4 +146,4 @@ def delete_block(block: NotionContent):
 
 if __name__ == "__main__":
     from pprint import pprint
-    pprint(get_contents("9f5784bc-bc46-4656-ac65-8b9777b8f230"))
+    pprint(get_contents())

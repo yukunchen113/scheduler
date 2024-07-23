@@ -12,15 +12,14 @@ from plex.daily.cache import save_to_cache, load_from_cache
 
 def sync_tasks_todo(taskgroups: list[TaskGroup]) -> None:
     """Syncs with notion tasks"""
-    pass # for now, don't hook up
-    # refresh_tasks_tasklists(taskgroups)
+    refresh_tasks_tasklists(taskgroups)
 
 def refresh_tasks_tasklists(taskgroups: list[TaskGroup]) -> None:
     """Push notes to notion tasks"""
     
     # get current task, next task
     ctime = datetime.now()
-    ctime = datetime(2024, 2, 1).replace(day=1, hour=9, minute=35).astimezone()
+    ctime = datetime(2024, 7, 17).replace(hour=9, minute=35).astimezone()
     ctasks, ntasks = [], []
     def get_relevant_tasks(taskgroups: list[TaskGroup]) -> str:
         for taskgroup in taskgroups:
@@ -31,7 +30,7 @@ def refresh_tasks_tasklists(taskgroups: list[TaskGroup]) -> None:
                         ntasks.append(taskgroup.tasks[tidx+1])
                     get_relevant_tasks(task.subtaskgroups)
     get_relevant_tasks(taskgroups)
-    updater =NotionTasksPageUpdater()
+    updater = NotionTasksPageUpdater()
     updater.update_task(ctasks, ntasks)
 
 class NotionTasksPageUpdater:
