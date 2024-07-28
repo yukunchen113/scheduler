@@ -79,6 +79,7 @@ def correct_deleted_and_added_timings_in_taskgroup(
             subtaskgroups=task.subtaskgroups, 
             uuid=task.uuid
         ))
+    print(timing_tasks_counts)
 
     for taskgroup in taskgroups:
         new_tasks = []

@@ -87,12 +87,23 @@ def split_desc_and_uuid(raw_description: str, used_uuids: set = set()):
     return timing_description, timing_uuid
 
 def get_timing_from_lines(
-    lines: list[str], config_date: Optional[datetime] = None
-) -> list[TimingConfig]:
+    lines: list[str], config_date: Optional[datetime] = None, existing_uuids: Optional[set[str]] = None,
+) -> tuple[list[TimingConfig], list[str]]:
+    """gets the timing from lines
+
+    Args:
+        lines (list[str]): lines that contains timings
+        config_date (Optional[datetime], optional): date for the timings. Defaults to None.
+
+    Returns:
+        tuple[list[TimingConfig], list[str]]: list of timings, list of new timing lines (after some post processing)
+    """
+    if existing_uuids is None:
+        existing_uuids = gather_existing_uuids_from_lines(lines)
     output, replaced = _get_timing_from_indexed_lines(
        dict(enumerate(lines)),
        config_date,
-       gather_existing_uuids_from_lines(lines)
+       existing_uuids
     )
     return output, [line for _,line in sorted(replaced.items())]
 
@@ -110,7 +121,7 @@ def gather_existing_uuids_from_lines(lines):
 def _get_timing_from_indexed_lines(
     lines: dict[int, str],
     config_date: Optional[datetime] = None,
-    used_uuids: set = set()
+    used_uuids: set[str] = set()
 ) -> list[TimingConfig]:
     output: list[TimingConfig] = []
     
@@ -177,7 +188,6 @@ def _get_timing_from_indexed_lines(
             replaced_lines.update({k:indent_line(v) for k,v in replaced_sublines.items()})
         else:
             subtimings = None
-        tim_des, tim_uuid = split_desc_and_uuid(des)
         output.append(TimingConfig(
             tim_des,
             minutes,
