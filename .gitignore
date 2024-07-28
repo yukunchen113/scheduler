@@ -52,3 +52,4 @@ calendar/*
 routines/*
 secrets.py
 cache_files/
+build/
