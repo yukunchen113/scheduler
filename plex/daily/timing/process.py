@@ -78,7 +78,7 @@ def split_desc_and_uuid(raw_description: str, used_uuids: set = set()):
             timing_uuid = make_random_uuid(TIMING_UUID_LENGTH)
         else:
             raise ValueError(f"Unable to generate unique uuid after {TIMING_UNIQUE_RETRIES} tries")
-        used_uuids.add(timing_uuid)
+    used_uuids.add(timing_uuid)
         
     timing_description = re.findall(
         rf"([^\|]+)(?:\|(?:{PATTERN_UUID})+\|)?", 
@@ -114,7 +114,7 @@ def gather_existing_uuids_from_lines(lines):
             split_desc_and_uuid(
                 line.split("[")[0].strip(),
                 used_uuids=uuids
-            ) # uuids will be updated
+            ) # updates uuids in place
     return uuids
     
 
