@@ -16,6 +16,7 @@ from plex.daily.calendar import (
     update_calendar_with_tasks,
     update_calendar_with_taskgroups,
 )
+from plex.daily.preprocess import apply_preprocessing
 
 CACHE_FILE = "cache_files/calendar_cache.pickle"
 
@@ -29,6 +30,7 @@ def process_daily_file(datestr: str, filename: str) -> None:
     """
     date = datetime.strptime(datestr, "%Y-%m-%d").astimezone()
     date = date.replace(**DEFAULT_START_TIME)
+    apply_preprocessing(filename, datestr=datestr)
     update_templates_in_file(filename, datestr=datestr, is_main_file=True)
     timings = get_timing_from_file(filename, date)
     read_tasks = read_taskgroups(filename, date)
