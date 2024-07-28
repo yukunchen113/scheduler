@@ -69,6 +69,7 @@ def read_sections_from_template(filename: str, datestr: str, is_main_file:bool, 
     last_key = None
     for line in lines:
         timing = re.search(TIMING_SET_TIME_PATTERN, line)
+        n_timing = 0
         if timing:
             # embelish line with metadata on which template it came from.
             section = template_name
