@@ -74,7 +74,8 @@ def read_sections_from_template(filename: str, datestr: str, is_main_file:bool, 
             section = template_name
             if last_key is not None:
                 section += f"-{last_key}"
-            line = line[:timing.start()]+f"|{section}| "+line[timing.start():timing.end()]+line[timing.end():]
+            line = line[:timing.start()]+f"|{section}/{n_timing}| "+line[timing.start():timing.end()]+line[timing.end():]
+            n_timing += 1
         if line.endswith(":\n"):
             last_key = line.replace(":\n", "")
             sections[last_key] = []
