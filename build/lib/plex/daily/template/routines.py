@@ -67,6 +67,7 @@ def read_sections_from_template(filename: str, datestr: str, is_main_file:bool, 
             lines = f.readlines()
 
     last_key = None
+    n_timing = 0
     for line in lines:
         timing = re.search(TIMING_SET_TIME_PATTERN, line)
         if timing:
