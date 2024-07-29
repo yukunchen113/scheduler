@@ -48,6 +48,16 @@ TEMPLATE_BASE_DIR = "routines"
 DEFAULT_TEMPLATE_SECTION = "__default__:\n"
 
 
+def pack_template_uuid(section: str, num: int) -> str:
+    return f"{section}/{num}"
+
+def unpack_template_uuid(uuid: str) -> tuple[str, Optional[int]]:
+    parts = uuid.split("/")
+    if len(parts) == 2:
+        return parts[0], int(parts[1])
+    else:
+        return parts[0], None
+
 def read_sections_from_template(filename: str, datestr: str, is_main_file:bool, options:str="", template_name:str="", used_uuids: Optional[dict[str, int]] = None) -> ReplacementsType:
     sections: ReplacementsType = {DEFAULT_TEMPLATE_SECTION: []}
     command = f"python3.10 {filename} --datestr {datestr}"
@@ -81,7 +91,7 @@ def read_sections_from_template(filename: str, datestr: str, is_main_file:bool, 
             section = template_name
             if last_key is not None:
                 section += f"-{last_key}"
-            line = line[:timing.start()]+f"|{section}/{used_uuids[section]}| "+line[timing.start():timing.end()]+line[timing.end():]
+            line = line[:timing.start()]+f"|{pack_template_uuid(section, used_uuids[section])}| "+line[timing.start():timing.end()]+line[timing.end():]
             used_uuids[section] += 1
         if line.endswith(":\n"):
             last_key = line.replace(":\n", "")

@@ -3,9 +3,8 @@ from plex.daily.timing.process import get_timing_from_lines, is_valid_timing_str
 from plex.daily.tasks.logic.calculations import calculate_times_in_taskgroup_list
 from plex.daily.tasks.logic.conversions import get_taskgroups_from_timing_configs
 from plex.daily.tasks.base import TaskGroup, Task
-from plex.daily.timing.base import TimingConfig
-from plex.daily.tasks.config import convert_task_to_string, process_taskgroups_from_lines
-from plex.daily.template.routines import process_template_lines, is_template_line
+from plex.daily.tasks.config import convert_task_to_string
+from plex.daily.template.routines import process_template_lines, is_template_line, unpack_template_uuid
 import re
 from collections import defaultdict
 
@@ -13,7 +12,7 @@ def apply_preprocessing(filename: str, datestr: str) -> None:
 	with open(filename) as file:
 		timing, tasks = split_lines_across_splitter(file.readlines())
 		splitter_line, tasks = tasks[0], tasks[1:] # first line of tasks is the splitter
-	tasks = process_templates(tasks, datestr)
+	tasks = process_templates(timing, tasks, datestr)
 	timing, tasks = process_timings_in_task_section(timing, tasks)
 
 	with open(filename, "w") as file:
@@ -25,9 +24,13 @@ def replace_list_bullet_with_indent(line: str):
 		line = line.replace(indents.group(), indents.group().replace("- ", "\t"))
 	return line
 
-def process_templates(task_lines:list[str], datestr: str) -> tuple[list[str], list[str]]:
+def process_templates(timing_lines: list[str], task_lines:list[str], datestr: str) -> tuple[list[str], list[str]]:
 	new_task_lines = []
 	used_uuids = defaultdict(lambda: 0)
+	
+	for uuid in gather_existing_uuids_from_lines(timing_lines):
+		used_uuids[unpack_template_uuid(uuid)[0]] += 1
+
 	for line in task_lines:
 		if is_template_line(line):
 			indent = re.match(r"^\t*", line).group()
@@ -57,7 +60,8 @@ def process_timings_in_task_section(timing_lines: list[str], task_lines:list[str
 	task_uuid_count = defaultdict(lambda: 0)
 	for line in task_lines:
 		if is_valid_timing_str(line):
-			timing_configs, new_timing_lines = get_timing_from_lines([line], existing_uuids=gather_existing_uuids_from_lines(timing_lines))
+			timing_configs, new_timing_lines = get_timing_from_lines(
+				[line], existing_uuids=gather_existing_uuids_from_lines(timing_lines))
 			
 			# add timing
 			timing_lines += new_timing_lines
