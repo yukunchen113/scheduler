@@ -11,12 +11,15 @@ from collections import defaultdict
 def apply_preprocessing(filename: str, datestr: str) -> None:
 	with open(filename) as file:
 		timing, tasks = split_lines_across_splitter(file.readlines())
-		splitter_line, tasks = tasks[0], tasks[1:] # first line of tasks is the splitter
+		if tasks:
+			splitter_line, tasks = [tasks[0]], tasks[1:] # first line of tasks is the splitter
+		else:
+			splitter_line, tasks = [], []
 	tasks = process_templates(timing, tasks, datestr)
 	timing, tasks = process_timings_in_task_section(timing, tasks)
 
 	with open(filename, "w") as file:
-		file.writelines(timing + [splitter_line] + tasks)
+		file.writelines(timing + splitter_line + tasks)
 
 def replace_list_bullet_with_indent(line: str):
 	indents = re.match(r"^\t*- ", line)
