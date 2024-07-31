@@ -287,12 +287,9 @@ def _process_taskgroups(
         )
     return taskgroups
 
-
-def read_taskgroups(
-    filename: str, default_datetime: Optional[datetime] = None
+def process_taskgroups_from_lines(
+    lines: list[str], default_datetime: Optional[datetime] = None
 ) -> list[TaskGroup]:
-    # gets lines after split
-    lines = get_lines_after_splitter(filename)
     # create tasks
     lines_with_level: list[tuple[LINE_TYPE, int]] = []
 
@@ -323,3 +320,12 @@ def read_taskgroups(
         lines_with_level[idx] = (item, level)
     # process taskgroups
     return _process_taskgroups(lines_with_level)
+
+def read_taskgroups(
+    filename: str, default_datetime: Optional[datetime] = None
+) -> list[TaskGroup]:
+    # gets lines after split
+    return process_taskgroups_from_lines(
+        get_lines_after_splitter(filename),
+        default_datetime
+    )

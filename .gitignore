@@ -49,6 +49,9 @@ package.nls.*.json
 l10n/
 daily/*
 calendar/*
-routines/*
+routines/
 secrets.py
 cache_files/
+build/
+dist/
+plex.egg-info/

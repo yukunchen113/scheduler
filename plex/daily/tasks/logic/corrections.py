@@ -63,12 +63,15 @@ CarriedOverFields = namedtuple("CarriedOverFields", [
 ])
 
 def correct_deleted_and_added_timings_in_taskgroup(
-    timing_tasks: list[Task], taskgroups: list[TaskGroup]
+    timing_tasks: list[Task], taskgroups: list[TaskGroup], 
+    timing_tasks_counts: Optional[dict[str, list[CarriedOverFields]]] = None
 ) -> list[TaskGroup]:
     # additional timings - add to end
     # unique key for distinuishing between different tasks are (description, minutes)
     # note there can be more than 1 of the same task
-    timing_tasks_counts: dict[str, list[CarriedOverFields]] = {}
+    if timing_tasks_counts is None:
+        timing_tasks_counts: dict[str, list[CarriedOverFields]] = {}
+    parent_uuids = {task_uuid for task_uuid in timing_tasks_counts.keys()}
     for task in timing_tasks:
         key = task.uuid
         if not key in timing_tasks_counts:
@@ -83,7 +86,6 @@ def correct_deleted_and_added_timings_in_taskgroup(
     for taskgroup in taskgroups:
         new_tasks = []
         for task in taskgroup.tasks:
-            # correct subtasks first, as they will affect the unique key
             key = task.uuid
             # deleted timings
             if key not in timing_tasks_counts or not timing_tasks_counts[key]:
@@ -93,17 +95,21 @@ def correct_deleted_and_added_timings_in_taskgroup(
                     # don't delete already done/started tasks
                     new_tasks.append(task)
             else:
-                timing_subtaskgroups = timing_tasks_counts[key].pop(0).subtaskgroups
+                cur_task = timing_tasks_counts[key].pop(0)
+                timing_subtaskgroups = cur_task.subtaskgroups
                 timing_subtasks = []
                 for timing_subtaskgroup in timing_subtaskgroups:
                     timing_subtasks += timing_subtaskgroup.tasks
                 subtaskgroups = correct_deleted_and_added_timings_in_taskgroup(
                     timing_subtasks,
                     task.subtaskgroups,
+                    timing_tasks_counts
                 )
                 new_tasks.append(
                     dataclasses.replace(
                         task,
+                        name=cur_task.name,
+                        time=cur_task.time,
                         subtaskgroups=subtaskgroups,
                     )
                 )
@@ -117,8 +123,9 @@ def correct_deleted_and_added_timings_in_taskgroup(
             subtaskgroups=subtaskgroups,
             uuid=task_uuid
         )
-        for _, minutes_list in timing_tasks_counts.items()
+        for task_uuid, minutes_list in timing_tasks_counts.items()
         for name, minutes, subtaskgroups, task_uuid in minutes_list
+        if task_uuid not in parent_uuids
     ]
     if not taskgroups:
         taskgroups = [TaskGroup(tasks=extra_tasks)]
