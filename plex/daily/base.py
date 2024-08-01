@@ -40,7 +40,6 @@ def process_daily_file(datestr: str, filename: str) -> None:
         taskgroups = calculate_times_in_taskgroup_list(taskgroups, date)
     else:
         taskgroups = sync_taskgroups_with_timing(timings, read_tasks, date)
-    sync_tasks_todo(taskgroups)
     write_taskgroups(taskgroups, filename)
 
 
@@ -59,8 +58,9 @@ def sync_tasks_to_calendar(
         taskgroups = read_taskgroups(filename, date)
         taskgroups = calculate_times_in_taskgroup_list(taskgroups, date)
         if push_only:
-            tasks = get_all_tasks_in_taskgroups(taskgroups)
-            update_calendar_with_tasks(tasks, datestr)
+            # tasks = get_all_tasks_in_taskgroups(taskgroups)
+            # update_calendar_with_tasks(tasks, datestr)
+            sync_tasks_todo(taskgroups) # pushes to notion
             break
         else:
             taskgroups = update_calendar_with_taskgroups(taskgroups, datestr)

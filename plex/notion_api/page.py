@@ -146,4 +146,14 @@ def delete_block(block: NotionContent):
 
 if __name__ == "__main__":
     from pprint import pprint
-    pprint(get_contents("9f5784bc-bc46-4656-ac65-8b9777b8f230"))
+    import time
+    # pprint(get_contents())
+    i = 0
+    while True:
+        heading = NotionContent(
+            NotionType.heading_1,
+            f"Test {i}"
+        )
+        heading = update_task(heading)
+        i += 1
+        time.sleep(1)
