@@ -5,7 +5,7 @@ from typing import Optional
 
 from tap import tapify
 
-from plex.daily import process_daily_file, sync_tasks_to_calendar
+from plex.daily import process_auto_update, process_daily_file, sync_tasks_to_calendar
 from plex.daily.config_format import make_daily_filename
 from plex.daily.endpoint import get_json_str
 
@@ -20,6 +20,7 @@ def main(
     push: bool = False,
     sync: bool = False,
     print_json: bool = False,
+    autoupdate: bool = False,
 ) -> None:
     """Plex: Planning and execution command line tool
 
@@ -31,6 +32,7 @@ def main(
         push (bool, optional): one time push to google calendar. Defaults to False.
         sync (bool, optional): start up sync server to sync calendar and file, while processing tasks. Defaults to False.
         print_json (bool, optional): prints json tasklists, doesn't include information from syncing with calendar
+        auto_update (bool, optional): sets into autoupdate mode, will constantly look to update and for triggers
     """
     if date:
         assert not tomorrow, "cannot specify tomorrow when date is specified."
@@ -62,13 +64,14 @@ def main(
                 f"Daily file {filename} doesn't exist. Unable to sync to calendar."
             )
         sync_tasks_to_calendar(datestr, filename, push_only=False)
-
     elif push:
         if not os.path.exists(filename):
             raise ValueError(
                 f"Daily file {filename} doesn't exist. Unable to push to calendar."
             )
         sync_tasks_to_calendar(datestr, filename, push_only=True)
+    if autoupdate:
+        process_auto_update(datestr, filename)
 
 
 if __name__ == "__main__":

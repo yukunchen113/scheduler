@@ -244,3 +244,80 @@ def test_task_induced_deletion(str_input: str, str_output: str) -> None:
     assert (
         actual == str_output
     ), f"Expected:\n{pformat(str_output)}\n\nActual:\n{pformat(actual)}"
+
+
+@pytest.mark.parametrize(
+    "str_input",
+    [
+        # subtask shifting
+        (
+            # Input:
+            "wake up |daily-morning/0| [20] (7:30am)\n"
+            "skincare |daily-morning/1| [15]\n"
+            "get ready |daily-morning/2| [10]\n"
+            "\n"
+            "go to lunch |food-out/0| [15]\n"
+            "lunch |food-out/1| [1h] #expense\n"
+            "come back from lunch |food-out/2| [15]\n"
+            "\n"
+            "evaluate medium term goals |goals-plan/0| [1h45]\n"
+            "\n"
+            "start recording |software-competitive_advent/2| [10]\n"
+            "new AoC - open book approach guidelines |software-competitive_advent/0| [1h30]\n"
+            "competitive programing retro |software-competitive_advent/1| [20]\n"
+            "\n"
+            "budget:plan |software-project/0| [2h]\n"
+            "\n"
+            "dishes |daily-night/0| [15]\n"
+            "schedule |daily-night/1| [20]\n"
+            "get ready for bed |daily-night/2| [20]\n"
+            "sleep |daily-night/3| [5]\n"
+            "\n"
+            "-------------\n"
+            "\n"
+            "9\n"
+            "\n"
+            "11:00\n"
+            "	11:00-11:20:	wake up |daily-morning/0:0| (20)	\n"
+            "	11:20-11:35:	skincare |daily-morning/1:0| (15)	\n"
+            "	11:35-11:45:	get ready |daily-morning/2:0| (10)	\n"
+            "\n"
+            "	11:45-12:00:	go to lunch |food-out/0:0| (15)	\n"
+            "	12:00-13:00:	lunch |food-out/1:0| (1h)	\n"
+            "	13:00-13:15:	come back from lunch |food-out/2:0| (15)	\n"
+            "\n"
+            "	13:15-15:00:	evaluate medium term goals |goals-plan/0:0| (1h45)	\n"
+            "\n"
+            "4pm\n"
+            "\n"
+            "	15:00-15:10:	start recording |software-competitive_advent/2:0| (10)	\n"
+            "	15:10-16:40:	new AoC - open book approach guidelines |software-competitive_advent/0:0| (1h30)	\n"
+            "	16:40-17:00:	competitive programing retro |software-competitive_advent/1:0| (20)	\n"
+            "		asdfg\n"
+            "\n"
+            "abdcd\n"
+            "\n"
+            "	17:00-19:00:	budget:plan |software-project/0:0| (2h)	\n"
+            "	asvb45\n"
+            "\n"
+            "	{food:out\n"
+            "\n"
+            "	22:30-22:45:	dishes |daily-night/0:0| (15)	\n"
+            "	22:45-23:05:	schedule |daily-night/1:0| (20)	\n"
+            "23:05\n"
+            "\n"
+            "	23:05-23:25:	get ready for bed |daily-night/2:0| (20)	\n"
+            "\n"
+            "	23:25-23:30:	sleep |daily-night/3:0| (5)	\n"
+            "23:30\n"
+            "\n"
+            "asfgg\n"
+        )
+    ],
+)
+def test_task_invariance(str_input: str) -> None:
+    lines_input = [i + "\n" for i in str_input.split("\n")]
+    actual = "".join(process_daily_lines(CUR_DATESTR, lines_input))
+    assert (
+        actual == str_input
+    ), f"Expected:\n{pformat(str_input)}\n\nActual:\n{pformat(actual)}"

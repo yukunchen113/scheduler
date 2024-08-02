@@ -60,6 +60,8 @@ class TaskGroup:
     user_specified_start: Optional[datetime] = None
     user_specified_end: Optional[datetime] = None
 
+    notes: list[str] = dataclasses.field(default_factory=list)
+
     def __post_init__(self):
         assert (
             self.user_specified_start is None or self.user_specified_end is None
@@ -67,12 +69,16 @@ class TaskGroup:
 
     @property
     def start(self):
+        if not self.tasks and self.notes:
+            return self.user_specified_start or self.user_specified_end
         assert self.tasks, "task list is empty"
         return self.user_specified_start or self.tasks[0].start
 
     @property
     def end(self):
         # calculate end without end diff
+        if not self.tasks and self.notes:
+            return self.user_specified_start or self.user_specified_end
         assert self.tasks, "task list is empty"
         if self.tasks[-1].end_diff is not None and self.tasks[-1].end_diff < 0:
             end = self.tasks[-1].end - timedelta(minutes=self.tasks[-1].end_diff)
@@ -84,7 +90,7 @@ class TaskGroup:
 
     @property
     def is_empty(self):
-        return not len(self.tasks)
+        return not len(self.tasks + self.notes)
 
 
 class TaskJsonEncoder(json.JSONEncoder):
