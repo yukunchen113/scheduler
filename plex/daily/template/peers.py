@@ -41,9 +41,7 @@ class CommandSpec(TypedDict):
     lines: list[str]
 
 
-def get_peer_commands(filename: str) -> tuple[list[str], list[CommandSpec]]:
-    with open(filename) as f:
-        lines = f.readlines()
+def get_peer_commands(lines: list[str]) -> tuple[list[str], list[CommandSpec]]:
     is_command = False
     commands: list[CommandSpec] = []
     new_lines = []
@@ -127,13 +125,12 @@ def process_command_and_get_replacement(command: CommandSpec) -> ReplacementsTyp
     return replacements
 
 
-def update_peer_commands(filename: str) -> None:
-    new_lines, commands = get_peer_commands(filename)
+def update_peer_commands(lines: list[str]) -> list[str]:
+    new_lines, commands = get_peer_commands(lines)
     replacements: ReplacementsType = {}
     order = ["send", "summary", "default"]
     commands = sorted(commands, key=lambda command: order.index(command["command"]))
     for command in commands:
         replacements.update(process_command_and_get_replacement(command))
-    new_lines = process_replacements(new_lines, replacements)
-    with open(filename, "w") as f:
-        f.writelines("".join(new_lines))
+    return process_replacements(new_lines, replacements)
+

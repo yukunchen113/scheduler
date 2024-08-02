@@ -38,7 +38,7 @@ from typing import Optional
 from collections import defaultdict
 
 from plex.daily.config_format import SPLITTER
-from plex.daily.template.config import write_timings_inplace_of_template
+from plex.daily.template.config import process_replacements
 from plex.daily.template.base import ReplacementsType
 from plex.daily.timing.process import TIMING_SET_TIME_PATTERN
 
@@ -131,15 +131,13 @@ def process_template_lines(lines: list[str], datestr: str, is_main_file:bool, us
             return templates
     return templates
 
-def read_template_from_timing(filename: str, datestr: str, is_main_file:bool) -> ReplacementsType:
-    """
-    reads the {} templates in timing file
-    """
+def update_routine_templates_in_file(filename, datestr, is_main_file=False):
     with open(filename) as f:
         lines = f.readlines()
-    return process_template_lines(lines, datestr, is_main_file)
+    new_lines =  update_routine_templates(lines, datestr, is_main_file)
+    with open(filename, "w") as f:
+        f.write("".join(new_lines))
 
-
-def update_routine_templates(filename, datestr, is_main_file=False):
-    replacements = read_template_from_timing(filename, datestr=datestr, is_main_file=is_main_file)
-    write_timings_inplace_of_template(filename, replacements)
+def update_routine_templates(lines: list[str], datestr: str, is_main_file: bool=False) -> list[str]:
+    replacements =  process_template_lines(lines, datestr, is_main_file)
+    return process_replacements(lines, replacements)

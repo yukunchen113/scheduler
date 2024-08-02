@@ -29,21 +29,6 @@ TASK_LINE_FORMAT = (
 
 LINE_TYPE = Union[None, Task, datetime, str]
 
-
-def prep_tasks_section(filename: str) -> list[str]:
-    towrite = []
-    with open(filename) as f:
-        for line in f.readlines():
-            if line.startswith(SPLITTER):
-                break
-            if not line.endswith("\n"):
-                line += "\n"
-            towrite.append(line)
-        towrite.append(f"{SPLITTER}\n")
-    towrite.append("\n")
-    return towrite
-
-
 def convert_task_to_string(
     task: Task, subtask_level: int = 0, overlap_time: Optional[datetime] = None
 ) -> str:
@@ -115,14 +100,27 @@ def convert_taskgroups_to_string(
 
 
 def write_taskgroups(taskgroups: list[TaskGroup], filename: str) -> None:
+    with open(filename) as f:
+        lines = f.readlines()
+    towrite = update_taskgroups_in_lines(taskgroups, lines)
+    with open(filename, "w") as f:
+        for line in towrite:
+            f.write(line)
+
+def update_taskgroups_in_lines(taskgroups: list[TaskGroup], lines: list[str]) -> list[str]:
+    towrite = []
     if taskgroups:
-        towrite = prep_tasks_section(filename)
+        for line in lines:
+            if line.startswith(SPLITTER):
+                break
+            if not line.endswith("\n"):
+                line += "\n"
+            towrite.append(line)
+        towrite.append(f"{SPLITTER}\n\n")
+
         # get tasks
         towrite.append(convert_taskgroups_to_string(taskgroups))
-        # write
-        with open(filename, "w") as f:
-            for line in towrite:
-                f.write(line)
+    return towrite
 
 
 def get_lines_after_splitter(filename: str) -> list[str]:
