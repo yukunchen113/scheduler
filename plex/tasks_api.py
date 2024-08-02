@@ -1,7 +1,7 @@
 import os
 import os.path
-from typing import Union, Optional
 from functools import cache
+from typing import Optional, Union
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials

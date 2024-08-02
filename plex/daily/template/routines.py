@@ -1,4 +1,4 @@
-""" 
+"""
 Processes templates in the timing section
 
 Structured as per {...}
@@ -28,18 +28,18 @@ timing spec
 '''
 in which case {y:x} can be used
 """
+
 import glob
 import os
 import re
 import subprocess
-import os
-
-from typing import Optional
 from collections import defaultdict
+from typing import Optional
 
 from plex.daily.config_format import SPLITTER
-from plex.daily.template.config import write_timings_inplace_of_template
 from plex.daily.template.base import ReplacementsType
+from plex.daily.template.config import process_replacements
+from plex.daily.timing.base import pack_timing_uuid
 from plex.daily.timing.process import TIMING_SET_TIME_PATTERN
 
 TEMPLATE_PATTERN = r"\{([^:]*)(?:\:([^:]*))?\}"
@@ -48,17 +48,14 @@ TEMPLATE_BASE_DIR = "routines"
 DEFAULT_TEMPLATE_SECTION = "__default__:\n"
 
 
-def pack_template_uuid(section: str, num: int) -> str:
-    return f"{section}/{num}"
-
-def unpack_template_uuid(uuid: str) -> tuple[str, Optional[int]]:
-    parts = uuid.split("/")
-    if len(parts) == 2:
-        return parts[0], int(parts[1])
-    else:
-        return parts[0], None
-
-def read_sections_from_template(filename: str, datestr: str, is_main_file:bool, options:str="", template_name:str="", used_uuids: Optional[dict[str, int]] = None) -> ReplacementsType:
+def read_sections_from_template(
+    filename: str,
+    datestr: str,
+    is_main_file: bool,
+    options: str = "",
+    template_name: str = "",
+    used_uuids: Optional[dict[str, int]] = None,
+) -> ReplacementsType:
     sections: ReplacementsType = {DEFAULT_TEMPLATE_SECTION: []}
     command = f"python3.10 {filename} --datestr {datestr}"
     if is_main_file:
@@ -91,7 +88,12 @@ def read_sections_from_template(filename: str, datestr: str, is_main_file:bool, 
             section = template_name
             if last_key is not None:
                 section += f"-{last_key}"
-            line = line[:timing.start()]+f"|{pack_template_uuid(section, used_uuids[section])}| "+line[timing.start():timing.end()]+line[timing.end():]
+            line = (
+                line[: timing.start()]
+                + f"|{pack_timing_uuid(section, used_uuids[section])}| "
+                + line[timing.start() : timing.end()]
+                + line[timing.end() :]
+            )
             used_uuids[section] += 1
         if line.endswith(":\n"):
             last_key = line.replace(":\n", "")
@@ -102,10 +104,17 @@ def read_sections_from_template(filename: str, datestr: str, is_main_file:bool, 
             sections[DEFAULT_TEMPLATE_SECTION].append(line)
     return sections
 
+
 def is_template_line(line: str) -> bool:
     return bool(re.search(TEMPLATE_PATTERN, line))
 
-def process_template_lines(lines: list[str], datestr: str, is_main_file:bool, used_uuids: Optional[dict[str, int]] = None) -> ReplacementsType:
+
+def process_template_lines(
+    lines: list[str],
+    datestr: str,
+    is_main_file: bool,
+    used_uuids: Optional[dict[str, int]] = None,
+) -> ReplacementsType:
     templates: ReplacementsType = {}
     for line in lines:
         if is_template_line(line):
@@ -119,7 +128,9 @@ def process_template_lines(lines: list[str], datestr: str, is_main_file:bool, us
                 )
                 continue
             file = files[0]
-            tsections = read_sections_from_template(file, datestr, is_main_file, section, dfile, used_uuids)
+            tsections = read_sections_from_template(
+                file, datestr, is_main_file, section, dfile, used_uuids
+            )
             if section:
                 if section not in tsections:
                     raise ValueError((dfile, section, tsections))
@@ -131,15 +142,17 @@ def process_template_lines(lines: list[str], datestr: str, is_main_file:bool, us
             return templates
     return templates
 
-def read_template_from_timing(filename: str, datestr: str, is_main_file:bool) -> ReplacementsType:
-    """
-    reads the {} templates in timing file
-    """
+
+def update_routine_templates_in_file(filename, datestr, is_main_file=False):
     with open(filename) as f:
         lines = f.readlines()
-    return process_template_lines(lines, datestr, is_main_file)
+    new_lines = update_routine_templates(lines, datestr, is_main_file)
+    with open(filename, "w") as f:
+        f.write("".join(new_lines))
 
 
-def update_routine_templates(filename, datestr, is_main_file=False):
-    replacements = read_template_from_timing(filename, datestr=datestr, is_main_file=is_main_file)
-    write_timings_inplace_of_template(filename, replacements)
+def update_routine_templates(
+    lines: list[str], datestr: str, is_main_file: bool = False
+) -> list[str]:
+    replacements = process_template_lines(lines, datestr, is_main_file)
+    return process_replacements(lines, replacements)

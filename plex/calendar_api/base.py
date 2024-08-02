@@ -1,9 +1,11 @@
-from datetime import datetime, timedelta
-from gcsa.google_calendar import GoogleCalendar
-from gcsa.event import Event
-from plex.secrets import email  # you need to create this file
-import random
 import functools
+import random
+from datetime import datetime, timedelta
+
+from gcsa.event import Event
+from gcsa.google_calendar import GoogleCalendar
+
+from plex.secrets import email  # you need to create this file
 
 EVENT_ID_ENCODING = "0123456789abcdefghijklmnopqrstuv"
 # added to the start of the uuid. Chars must be a part of EVENT_ID_ENCODING

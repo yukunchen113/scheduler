@@ -79,44 +79,44 @@ project [2h]
 get ready for bed [30]
 -------------
 
-	7:30-7:40:	wake up (10)	
-	7:40-8:00:	washroom (20)	
-	8:00-8:10:	skincare (10)	
-	8:10-8:20:	get ready (10)	
-	8:20-8:50:	commute to work (30)	
-	8:50-17:00:	work (8h10)	
-		8:50-9:50:	lunch (1h)	
-	17:00-17:30:	go to hangout (30)	
-	17:30-19:30:	hangout with dinner (2h)	
-	19:30-20:00:	go home (30)	
-	20:00-21:00:	workout (1h)	
-	21:00-23:00:	project (2h)	
-	23:00-23:30:	get ready for bed (30)	
+	7:30-7:40:	wake up (10)
+	7:40-8:00:	washroom (20)
+	8:00-8:10:	skincare (10)
+	8:10-8:20:	get ready (10)
+	8:20-8:50:	commute to work (30)
+	8:50-17:00:	work (8h10)
+		8:50-9:50:	lunch (1h)
+	17:00-17:30:	go to hangout (30)
+	17:30-19:30:	hangout with dinner (2h)
+	19:30-20:00:	go home (30)
+	20:00-21:00:	workout (1h)
+	21:00-23:00:	project (2h)
+	23:00-23:30:	get ready for bed (30)
 
 ```
 
 
 # Modifying the Schedule
 
-If you want to change the expected durations, you need to change it in the timing section, 
-and it will then be reflected in the scheduler section. 
+If you want to change the expected durations, you need to change it in the timing section,
+and it will then be reflected in the scheduler section.
 
 You can move `tasks` around in the schedule, and the movement will be persisted. For example, moving workout up a couple of rows. You can then rerun the execution command:
 
 ```
-	7:30-7:40:	wake up (10)	
-	7:40-8:00:	washroom (20)	
-	8:00-8:10:	skincare (10)	
-	8:10-8:20:	get ready (10)	
-	8:20-8:50:	commute to work (30)	
-	8:50-17:00:	work (8h10)	
-		8:50-9:50:	lunch (1h)	
-	20:00-21:00:	workout (1h)	
-	17:00-17:30:	go to hangout (30)	
-	17:30-19:30:	hangout with dinner (2h)	
-	19:30-20:00:	go home (30)	
-	21:00-23:00:	project (2h)	
-	23:00-23:30:	get ready for bed (30)	
+	7:30-7:40:	wake up (10)
+	7:40-8:00:	washroom (20)
+	8:00-8:10:	skincare (10)
+	8:10-8:20:	get ready (10)
+	8:20-8:50:	commute to work (30)
+	8:50-17:00:	work (8h10)
+		8:50-9:50:	lunch (1h)
+	20:00-21:00:	workout (1h)
+	17:00-17:30:	go to hangout (30)
+	17:30-19:30:	hangout with dinner (2h)
+	19:30-20:00:	go home (30)
+	21:00-23:00:	project (2h)
+	23:00-23:30:	get ready for bed (30)
 ```
 
 ```bash
@@ -124,47 +124,47 @@ python -m plex
 ```
 
 ```
-	7:30-7:40:	wake up (10)	
-	7:40-8:00:	washroom (20)	
-	8:00-8:10:	skincare (10)	
-	8:10-8:20:	get ready (10)	
-	8:20-8:50:	commute to work (30)	
-	8:50-17:00:	work (8h10)	
-		8:50-9:50:	lunch (1h)	
-	17:00-18:00:	workout (1h)	
-	18:00-18:30:	go to hangout (30)	
-	18:30-20:30:	hangout with dinner (2h)	
-	20:30-21:00:	go home (30)	
-	21:00-23:00:	project (2h)	
-	23:00-23:30:	get ready for bed (30)	
+	7:30-7:40:	wake up (10)
+	7:40-8:00:	washroom (20)
+	8:00-8:10:	skincare (10)
+	8:10-8:20:	get ready (10)
+	8:20-8:50:	commute to work (30)
+	8:50-17:00:	work (8h10)
+		8:50-9:50:	lunch (1h)
+	17:00-18:00:	workout (1h)
+	18:00-18:30:	go to hangout (30)
+	18:30-20:30:	hangout with dinner (2h)
+	20:30-21:00:	go home (30)
+	21:00-23:00:	project (2h)
+	23:00-23:30:	get ready for bed (30)
 ```
 
-You can control the tasks by setting `start time` and `end time`. 
+You can control the tasks by setting `start time` and `end time`.
 - split the tasks into `taskgroups`, which are just separated by an empty line
-- add the time to the 
+- add the time to the
   - beginning of taskgroup if you want to specify start time
   - end of taskgroup if you want to specify end time
 - make sure indentation of timing is correct for subtasks (see below for example)
 
 ```
 8am
-  7:30-7:40:	wake up (10)	
-  7:40-8:00:	washroom (20)	
-  8:00-8:10:	skincare (10)	
-  8:10-8:20:	get ready (10)	
-  8:20-8:50:	commute to work (30)	
-  8:50-17:00:	work (8h10)	
+  7:30-7:40:	wake up (10)
+  7:40-8:00:	washroom (20)
+  8:00-8:10:	skincare (10)
+  8:10-8:20:	get ready (10)
+  8:20-8:50:	commute to work (30)
+  8:50-17:00:	work (8h10)
 
   12
-    8:50-9:50:	lunch (1h)	
-    
-  20:00-21:00:	workout (1h)	
-  17:00-17:30:	go to hangout (30)	
-  17:30-19:30:	hangout with dinner (2h)	
-  19:30-20:00:	go home (30)	
-  21:00-23:00:	project (2h)	
+    8:50-9:50:	lunch (1h)
 
-  23:00-23:30:	get ready for bed (30)	
+  20:00-21:00:	workout (1h)
+  17:00-17:30:	go to hangout (30)
+  17:30-19:30:	hangout with dinner (2h)
+  19:30-20:00:	go home (30)
+  21:00-23:00:	project (2h)
+
+  23:00-23:30:	get ready for bed (30)
 11:55pm
 ```
 
@@ -174,22 +174,22 @@ python -m plex
 
 ```
 8:00
-	8:00-8:10:	wake up (10)	
-	8:10-8:30:	washroom (20)	
-	8:30-8:40:	skincare (10)	
-	8:40-8:50:	get ready (10)	
-	8:50-9:20:	commute to work (30)	
-	9:20-17:30:	work (8h10)	
+	8:00-8:10:	wake up (10)
+	8:10-8:30:	washroom (20)
+	8:30-8:40:	skincare (10)
+	8:40-8:50:	get ready (10)
+	8:50-9:20:	commute to work (30)
+	9:20-17:30:	work (8h10)
 	12:00
-		12:00-13:00:	lunch (1h)	
+		12:00-13:00:	lunch (1h)
 
-	17:30-18:30:	workout (1h)	
-	18:30-19:00:	go to hangout (30)	
-	19:00-21:00:	hangout with dinner (2h)	
-	21:00-21:30:	go home (30)	
-	[91m21:30-23:30:	project (2h)[0m	
+	17:30-18:30:	workout (1h)
+	18:30-19:00:	go to hangout (30)
+	19:00-21:00:	hangout with dinner (2h)
+	21:00-21:30:	go home (30)
+	[91m21:30-23:30:	project (2h)[0m
 
-	23:25-23:55:	get ready for bed (30)	
+	23:25-23:55:	get ready for bed (30)
 23:55
 ```
 
