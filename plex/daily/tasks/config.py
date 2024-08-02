@@ -12,22 +12,29 @@ from plex.daily.config_format import (
     process_timedelta_to_mins,
 )
 from plex.daily.tasks import Task, TaskGroup
-
+from plex.daily.tasks.base import TaskType
 from plex.daily.unique_id import PATTERN_UUID
 
 OVERLAP_COLOR = "91m"
 
-TASK_LINE_FORMAT = (
-    fr"((?:\+|-){TIMEDELTA_FORMAT})?" # start diff
-    fr"\t(\t+)?(?:\033\[{OVERLAP_COLOR})?" # overlap start
-    fr"({TIME_FORMAT})-({TIME_FORMAT}):" # time range
-    fr"\t(.+) " # task description
-    fr"\(({TIMEDELTA_FORMAT})\)" # task duration
-    fr"(?:\033\[0m)?" # overlap end
-    fr"\t?((?:\+|-){TIMEDELTA_FORMAT})?" # end diff
-)
+
+def get_task_line_format(task_type: TaskType = TaskType.regular):
+    task_duration = rf"\(({TIMEDELTA_FORMAT})\)"
+    if task_type == TaskType.deletion_request:
+        task_duration = "\((-)\)"
+    return (
+        rf"((?:\+|-){TIMEDELTA_FORMAT})?"  # start diff
+        rf"\t(\t+)?(?:\033\[{OVERLAP_COLOR})?"  # overlap start
+        rf"({TIME_FORMAT})-({TIME_FORMAT}):"  # time range
+        rf"\t(.+) "  # task description
+        + task_duration
+        + rf"(?:\033\[0m)?"  # task duration  # overlap end
+        rf"\t?((?:\+|-){TIMEDELTA_FORMAT})?"  # end diff
+    )
+
 
 LINE_TYPE = Union[None, Task, datetime, str]
+
 
 def convert_task_to_string(
     task: Task, subtask_level: int = 0, overlap_time: Optional[datetime] = None
@@ -107,7 +114,10 @@ def write_taskgroups(taskgroups: list[TaskGroup], filename: str) -> None:
         for line in towrite:
             f.write(line)
 
-def update_taskgroups_in_lines(taskgroups: list[TaskGroup], lines: list[str]) -> list[str]:
+
+def update_taskgroups_in_lines(
+    taskgroups: list[TaskGroup], lines: list[str]
+) -> list[str]:
     towrite = []
     if taskgroups:
         for line in lines:
@@ -139,25 +149,24 @@ def get_lines_after_splitter(filename: str) -> list[str]:
 
 
 def split_desc_and_uuid(raw_description: str):
-    id_from_desc = re.findall(
-        rf"\|((?:{PATTERN_UUID})+:[0-9]+)\|", 
-        raw_description
-    )
-    
+    id_from_desc = re.findall(rf"\|((?:{PATTERN_UUID})+:[0-9]+)\|", raw_description)
+
     task_uuid = None
     if id_from_desc:
         # get from raw description
         task_uuid = id_from_desc[0]
 
     task_description = re.findall(
-        rf"([^\|]+)(?:\|(?:{PATTERN_UUID})+:[0-9]+\|)?", 
-        raw_description
+        rf"([^\|]+)(?:\|(?:{PATTERN_UUID})+:[0-9]+\|)?", raw_description
     )[0].strip()
     return task_description, task_uuid
 
-def process_task_line(line: str) -> tuple[Optional[Task], int]:
+
+def process_task_line(
+    line: str, task_type: TaskType = TaskType.regular
+) -> tuple[Optional[Task], int]:
     matches = re.findall(
-        TASK_LINE_FORMAT,
+        get_task_line_format(task_type),
         line,
     )
     if not matches:
@@ -171,7 +180,10 @@ def process_task_line(line: str) -> tuple[Optional[Task], int]:
         minutes,
         end_diff,
     ) = matches[0]
-    minutes = process_timedelta_to_mins(minutes)
+    if task_type == TaskType.deletion_request:
+        minutes = -1
+    else:
+        minutes = process_timedelta_to_mins(minutes)
     start = process_time_to_datetime(start_time)
     end = process_time_to_datetime(end_time)
     start_diff = (
@@ -184,10 +196,10 @@ def process_task_line(line: str) -> tuple[Optional[Task], int]:
         if end_diff == ""
         else process_timedelta_to_mins(end_diff[1:]) * int(end_diff[0] + "1")
     )
-    
+
     # process uuid
     task_des, task_uuid = split_desc_and_uuid(task_des)
-    
+
     return Task(
         name=task_des,
         time=minutes,
@@ -285,6 +297,7 @@ def _process_taskgroups(
         )
     return taskgroups
 
+
 def process_taskgroups_from_lines(
     lines: list[str], default_datetime: Optional[datetime] = None
 ) -> list[TaskGroup]:
@@ -319,11 +332,11 @@ def process_taskgroups_from_lines(
     # process taskgroups
     return _process_taskgroups(lines_with_level)
 
+
 def read_taskgroups(
     filename: str, default_datetime: Optional[datetime] = None
 ) -> list[TaskGroup]:
     # gets lines after split
     return process_taskgroups_from_lines(
-        get_lines_after_splitter(filename),
-        default_datetime
+        get_lines_after_splitter(filename), default_datetime
     )

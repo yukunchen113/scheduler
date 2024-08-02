@@ -1,14 +1,22 @@
-from datetime import datetime
 from collections import defaultdict
+from datetime import datetime
 from typing import Optional
 
 from plex.daily.tasks import Task, TaskGroup
 from plex.daily.timing.base import TimingConfig
 
 
+def get_timing_uuid_from_task_uuid(task_uuid: str) -> tuple[str, int]:
+    timing_uuid, index = task_uuid.split(":")
+    return timing_uuid, int(index)
+
+
+def get_task_uuid_from_timing_uuid(timing_uuid: str, index: int) -> str:
+    return f"{timing_uuid}:{index}"
+
+
 def get_taskgroups_from_timing_configs(
-    timing_configs: list[TimingConfig],
-    uuid_count:Optional[dict[str, int]] = None
+    timing_configs: list[TimingConfig], uuid_count: Optional[dict[str, int]] = None
 ) -> list[TaskGroup]:
     if uuid_count is None:
         uuid_count = defaultdict(lambda: 0)
@@ -22,14 +30,18 @@ def get_taskgroups_from_timing_configs(
             Task(
                 name=timing_config.task_description,
                 time=minutes,
-                uuid=f"{timing_config.uuid}:{midx}",
+                uuid=get_task_uuid_from_timing_uuid(timing_config.uuid, midx),
                 subtaskgroups=(
                     []
                     if timing_config.subtimings is None
-                    else get_taskgroups_from_timing_configs(timing_config.subtimings, uuid_count)
+                    else get_taskgroups_from_timing_configs(
+                        timing_config.subtimings, uuid_count
+                    )
                 ),
             )
-            for midx, minutes in enumerate(timing_config.timings, uuid_count[timing_config.uuid])
+            for midx, minutes in enumerate(
+                timing_config.timings, uuid_count[timing_config.uuid]
+            )
         ]
         uuid_count[timing_config.uuid] += len(timing_config.timings)
         if timing_config.set_time:

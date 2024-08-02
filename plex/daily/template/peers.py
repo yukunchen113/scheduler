@@ -19,15 +19,21 @@ Here are the currently accepted commands:
 - will remove the sent data after sending.
 - selects all data until another [<filename>:command], [:end], or SPLITTER is detected.
 """
-import re
+
 import os
-from typing import TypedDict
+import re
 from datetime import datetime
-from plex.daily.config_format import TIMEDELTA_FORMAT, SPLITTER, TIME_FORMAT
+from typing import TypedDict
+
+from plex.daily.config_format import (
+    SPLITTER,
+    TIME_FORMAT,
+    TIMEDELTA_FORMAT,
+    make_daily_filename,
+)
 from plex.daily.template.base import ReplacementsType
-from plex.daily.template.config import process_replacements
 from plex.daily.template.calculations import evaluate_config_duration
-from plex.daily.config_format import make_daily_filename
+from plex.daily.template.config import process_replacements
 
 COMMAND_PATTERN = r"\[([^:]+)?(?:\:([^:]+))?\](?: \({0}:(?:\|{1}-{1})?\))?".format(
     TIMEDELTA_FORMAT, TIME_FORMAT
@@ -133,4 +139,3 @@ def update_peer_commands(lines: list[str]) -> list[str]:
     for command in commands:
         replacements.update(process_command_and_get_replacement(command))
     return process_replacements(new_lines, replacements)
-

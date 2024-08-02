@@ -1,8 +1,10 @@
 """
 Utilities to modify daily config files
 """
+
 from plex.daily.config_format import SPLITTER
 from plex.daily.template.base import ReplacementsType
+
 
 def process_replacements(lines: list[str], replacements: ReplacementsType):
     """replaces the templates with the routines in the timing file lines

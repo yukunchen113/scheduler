@@ -1,5 +1,5 @@
-import os
 import datetime
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -19,7 +19,7 @@ def main(
     no_process_daily: bool = False,
     push: bool = False,
     sync: bool = False,
-    print_json: bool = False
+    print_json: bool = False,
 ) -> None:
     """Plex: Planning and execution command line tool
 

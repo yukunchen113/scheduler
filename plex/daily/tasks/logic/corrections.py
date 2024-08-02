@@ -1,13 +1,13 @@
 import dataclasses
+from collections import namedtuple
 from datetime import datetime
 from typing import Optional
-from collections import namedtuple
 
 from plex.daily.tasks import Task, TaskGroup
 from plex.daily.tasks.base import add_tasks, pop_task
-from plex.daily.timing.base import TimingConfig
 from plex.daily.tasks.logic.calculations import calculate_times_in_taskgroup_list
 from plex.daily.tasks.logic.conversions import get_taskgroups_from_timing_configs
+from plex.daily.timing.base import TimingConfig
 
 
 def correct_timing_in_taskgroups(
@@ -58,13 +58,16 @@ def correct_timing_in_taskgroups(
         taskgroup.tasks = new_tasks
     return taskgroups
 
-CarriedOverFields = namedtuple("CarriedOverFields", [
-    "name", "time", "subtaskgroups", "uuid"
-])
+
+CarriedOverFields = namedtuple(
+    "CarriedOverFields", ["name", "time", "subtaskgroups", "uuid"]
+)
+
 
 def correct_deleted_and_added_timings_in_taskgroup(
-    timing_tasks: list[Task], taskgroups: list[TaskGroup], 
-    timing_tasks_counts: Optional[dict[str, list[CarriedOverFields]]] = None
+    timing_tasks: list[Task],
+    taskgroups: list[TaskGroup],
+    timing_tasks_counts: Optional[dict[str, list[CarriedOverFields]]] = None,
 ) -> list[TaskGroup]:
     # additional timings - add to end
     # unique key for distinuishing between different tasks are (description, minutes)
@@ -76,12 +79,14 @@ def correct_deleted_and_added_timings_in_taskgroup(
         key = task.uuid
         if not key in timing_tasks_counts:
             timing_tasks_counts[key] = []
-        timing_tasks_counts[key].append(CarriedOverFields(
-            name=task.name,
-            time=task.time, 
-            subtaskgroups=task.subtaskgroups, 
-            uuid=task.uuid
-        ))
+        timing_tasks_counts[key].append(
+            CarriedOverFields(
+                name=task.name,
+                time=task.time,
+                subtaskgroups=task.subtaskgroups,
+                uuid=task.uuid,
+            )
+        )
 
     for taskgroup in taskgroups:
         new_tasks = []
@@ -101,9 +106,7 @@ def correct_deleted_and_added_timings_in_taskgroup(
                 for timing_subtaskgroup in timing_subtaskgroups:
                     timing_subtasks += timing_subtaskgroup.tasks
                 subtaskgroups = correct_deleted_and_added_timings_in_taskgroup(
-                    timing_subtasks,
-                    task.subtaskgroups,
-                    timing_tasks_counts
+                    timing_subtasks, task.subtaskgroups, timing_tasks_counts
                 )
                 new_tasks.append(
                     dataclasses.replace(
@@ -116,17 +119,13 @@ def correct_deleted_and_added_timings_in_taskgroup(
         taskgroup.tasks = new_tasks
 
     # check if any are added
-    extra_tasks = [
-        Task(
-            name=name,
-            time=minutes,
-            subtaskgroups=subtaskgroups,
-            uuid=task_uuid
-        )
-        for task_uuid, minutes_list in timing_tasks_counts.items()
-        for name, minutes, subtaskgroups, task_uuid in minutes_list
-        if task_uuid not in parent_uuids
-    ]
+    extra_tasks = []
+    for task_uuid in set(timing_tasks_counts.keys()) - parent_uuids:
+        minutes_list = timing_tasks_counts.pop(task_uuid)
+        extra_tasks += [
+            Task(name=name, time=minutes, subtaskgroups=subtaskgroups, uuid=task_uuid)
+            for name, minutes, subtaskgroups, task_uuid in minutes_list
+        ]
     if not taskgroups:
         taskgroups = [TaskGroup(tasks=extra_tasks)]
     else:
@@ -158,33 +157,40 @@ def sync_taskgroups_with_timing(
 def append_overlap_tasks_to_end(taskgroups: list[TaskGroup]) -> list[TaskGroup]:
     """
     Appends the overlapping times to end of taskgroup list
-    """    
-    return taskgroups # not done for now
+    """
+    return taskgroups  # not done for now
     # preprocess
-    for idx,tgroup in enumerate(taskgroups[:-1]):
-        ntgroup = taskgroups[idx+1]
+    for idx, tgroup in enumerate(taskgroups[:-1]):
+        ntgroup = taskgroups[idx + 1]
         assert tgroup.start <= ntgroup.start
-        if tgroup.end > ntgroup.start: # overlap
-            if ntgroup.user_specified_start and tgroup.user_specified_end: # swap
-                taskgroups[idx], taskgroups[idx+1] = ntgroup, tgroup
-    
+        if tgroup.end > ntgroup.start:  # overlap
+            if ntgroup.user_specified_start and tgroup.user_specified_end:  # swap
+                taskgroups[idx], taskgroups[idx + 1] = ntgroup, tgroup
+
     overlap = []
-    for idx,tgroup in enumerate(taskgroups[:-1]):
-        ntgroup = taskgroups[idx+1]
-        while tgroup.tasks and ntgroup.tasks and tgroup.end > ntgroup.start: # overlap detected
-            retain_one_item = not ((len(ntgroup.tasks) == 1 or ntgroup.user_specified_start) and (len(tgroup.tasks) == 1 or tgroup.user_specified_end))
+    for idx, tgroup in enumerate(taskgroups[:-1]):
+        ntgroup = taskgroups[idx + 1]
+        while (
+            tgroup.tasks and ntgroup.tasks and tgroup.end > ntgroup.start
+        ):  # overlap detected
+            retain_one_item = not (
+                (len(ntgroup.tasks) == 1 or ntgroup.user_specified_start)
+                and (len(tgroup.tasks) == 1 or tgroup.user_specified_end)
+            )
             # try to pop first
-            if not (tgroup.user_specified_end or len(tgroup.tasks) == 1 and retain_one_item):
+            if not (
+                tgroup.user_specified_end or len(tgroup.tasks) == 1 and retain_one_item
+            ):
                 overlap.append(pop_task(tgroup))
             # try to pop second
-            if not (ntgroup.user_specified_start or len(ntgroup.tasks) == 1 and retain_one_item):
+            if not (
+                ntgroup.user_specified_start
+                or len(ntgroup.tasks) == 1
+                and retain_one_item
+            ):
                 overlap.append(pop_task(tgroup))
     if overlap:
         taskgroups.append(TaskGroup(overlap))
-    
+
     # remove empty taskgroups
     return [tgroup for i in taskgroups if tgroup.tasks]
-            
-    
-
-    

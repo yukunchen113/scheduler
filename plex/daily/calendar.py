@@ -1,24 +1,26 @@
-from datetime import datetime, timedelta
 import math
 import os
 import pickle
-from plex.daily.tasks.base import update_taskgroups_with_changes
+from datetime import datetime, timedelta
+
+from plex.calendar_api import (
+    create_calendar_event,
+    delete_calendar_event,
+    get_all_plex_calendar_events,
+    get_event,
+    update_calendar_event,
+)
+from plex.daily.cache import load_from_cache, save_to_cache
 from plex.daily.tasks import (
     DEFAULT_START_TIME,
     Task,
     TaskGroup,
     get_all_tasks_in_taskgroups,
 )
-from plex.calendar_api import (
-    get_all_plex_calendar_events,
-    create_calendar_event,
-    delete_calendar_event,
-    get_event,
-    update_calendar_event,
-)
-from plex.daily.cache import load_from_cache, save_to_cache
+from plex.daily.tasks.base import update_taskgroups_with_changes
 
 CACHE_FILE = "cache_files/calendar/calendar_cache.pickle"
+
 
 def update_calendar_with_tasks(tasks: list[Task], datestr: str) -> dict[str, Task]:
     """Syncs tasks with calendar tasks.
@@ -143,6 +145,7 @@ def get_updates_from_calendar(
         if start_diff != task.start_diff or end_diff != task.end_diff:
             changes[task.uuid] = {"start_diff": start_diff, "end_diff": end_diff}
     return changes
+
 
 def update_calendar_with_taskgroups(
     taskgroups: list[TaskGroup], datestr: str

@@ -1,8 +1,8 @@
-import re
-from typing import Optional
-from datetime import datetime
 import os
+import re
+from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 DAILY_BASEDIR = "daily"
 
