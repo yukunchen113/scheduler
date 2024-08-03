@@ -123,13 +123,13 @@ def pop_task(taskgroup: TaskGroup):
     return task
 
 
-def get_all_tasks_in_taskgroups(taskgroups: list[TaskGroup]) -> list[Task]:
+def flatten_taskgroups_into_tasks(taskgroups: list[TaskGroup]) -> list[Task]:
     """Gets all tasks and subtasks in taskgroups"""
     tasks = []
     for taskgroup in taskgroups:
         for task in taskgroup.tasks:
-            tasks += get_all_tasks_in_taskgroups(task.subtaskgroups)
             tasks.append(task)
+            tasks += flatten_taskgroups_into_tasks(task.subtaskgroups)
     return tasks
 
 

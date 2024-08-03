@@ -2,8 +2,13 @@ import re
 from collections import defaultdict
 from typing import Optional
 
-from plex.daily.tasks.base import Task, TaskGroup, TaskType
-from plex.daily.tasks.config import convert_task_to_string, process_task_line
+from plex.daily.tasks.base import (
+    Task,
+    TaskGroup,
+    TaskType,
+    flatten_taskgroups_into_tasks,
+)
+from plex.daily.tasks.config import convert_to_string, process_task_line
 from plex.daily.tasks.logic.calculations import calculate_times_in_taskgroup_list
 from plex.daily.tasks.logic.conversions import (
     get_taskgroups_from_timing_configs,
@@ -106,15 +111,6 @@ def process_templates(
     return new_task_lines
 
 
-def flatten_taskgroups_into_tasks(taskgroups: list[TaskGroup]) -> list[Task]:
-    tasks = []
-    for taskgroup in taskgroups:
-        for task in taskgroup.tasks:
-            tasks.append(task)
-            tasks += flatten_taskgroups_into_tasks(task.subtaskgroups)
-    return tasks
-
-
 def process_timings_in_task_section(
     timing_lines: list[str], task_lines: list[str]
 ) -> tuple[list[str], list[str]]:
@@ -142,8 +138,7 @@ def process_timings_in_task_section(
                 )
             )
             task_lines = [
-                (len(indent) - 1) * "\t" + convert_task_to_string(task)
-                for task in tasks
+                (len(indent) - 1) * "\t" + convert_to_string(task) for task in tasks
             ]
         else:
             task_lines = [line]

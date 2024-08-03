@@ -1,12 +1,17 @@
 import time
 from datetime import datetime
+from enum import Enum
 
 from plex.daily.calendar import (
     update_calendar_with_taskgroups,
     update_calendar_with_tasks,
 )
 from plex.daily.preprocess import apply_preprocessing
-from plex.daily.tasks import DEFAULT_START_TIME, TaskGroup, get_all_tasks_in_taskgroups
+from plex.daily.tasks import (
+    DEFAULT_START_TIME,
+    TaskGroup,
+    flatten_taskgroups_into_tasks,
+)
 from plex.daily.tasks.config import (
     convert_taskgroups_to_lines,
     process_taskgroups_from_lines,
@@ -18,13 +23,18 @@ from plex.daily.tasks.logic import (
     get_taskgroups_from_timing_configs,
     sync_taskgroups_with_timing,
 )
-from plex.daily.tasks.push_notes import sync_tasks_todo
+from plex.daily.tasks.push_notes import sync_tasks_to_notion
 from plex.daily.template import update_templates
 from plex.daily.timing import get_timing_from_file
 from plex.daily.timing.process import get_timing_from_lines
 from plex.daily.timing.read import split_lines_across_splitter
 
 CACHE_FILE = "cache_files/calendar_cache.pickle"
+
+
+class TaskSource(Enum):
+    FILE = "file"
+    NOTION = "notion"
 
 
 def split_splitter_and_tasks(task_lines_with_splitter: list[str]):
@@ -112,16 +122,16 @@ def sync_tasks_to_calendar(
         taskgroups = read_taskgroups(filename, date)
         taskgroups = calculate_times_in_taskgroup_list(taskgroups, date)
         if push_only:
-            # tasks = get_all_tasks_in_taskgroups(taskgroups)
+            # tasks = flatten_taskgroups_into_tasks(taskgroups)
             # update_calendar_with_tasks(tasks, datestr)
-            sync_tasks_todo(taskgroups)  # pushes to notion
+            sync_tasks_to_notion(taskgroups, filename, datestr)  # pushes to notion
             break
         else:
             taskgroups = update_calendar_with_taskgroups(taskgroups, datestr)
             if taskgroups:
                 # recalculate taskgroups
                 taskgroups = calculate_times_in_taskgroup_list(taskgroups, date)
-                sync_tasks_todo(taskgroups)
+                sync_tasks_to_notion(taskgroups, filename, datestr)
                 write_taskgroups(taskgroups, filename)
             else:
                 time.sleep(10)

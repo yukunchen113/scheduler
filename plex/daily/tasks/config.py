@@ -1,7 +1,7 @@
 import dataclasses
 import re
 from datetime import datetime
-from typing import Optional, Union
+from typing import Optional, TypedDict, Union
 
 from plex.daily.config_format import (
     SPLITTER,
@@ -21,7 +21,7 @@ OVERLAP_COLOR = "91m"
 def get_task_line_format(task_type: TaskType = TaskType.regular):
     task_duration = rf"\(({TIMEDELTA_FORMAT})\)"
     if task_type == TaskType.deletion_request:
-        task_duration = "\((-)\)"
+        task_duration = r"\((-)\)"
     return (
         rf"((?:\+|-){TIMEDELTA_FORMAT})?"  # start diff
         rf"\t(\t+)?(?:\033\[{OVERLAP_COLOR})?"  # overlap start
@@ -36,9 +36,33 @@ def get_task_line_format(task_type: TaskType = TaskType.regular):
 LINE_TYPE = Union[None, Task, datetime, str]
 
 
-def convert_task_to_string(
+@dataclasses.dataclass(frozen=True)
+class TaskStringSections:
+    start_diff: str
+    indentation: str
+    start: str
+    end: str
+    name: str
+    uuid: str
+    time: str
+    end_diff: str
+    notes: str
+
+    # metadata
+    is_overlap: bool
+
+
+@dataclasses.dataclass(frozen=True)
+class TaskGroupStringSections:
+    notes: list[str] = dataclasses.field(default_factory=list)
+    user_specified_start: str = ""
+    user_specified_end: str = ""
+    is_break: bool = False
+
+
+def convert_task_to_string_sections(
     task: Task, subtask_level: int = 0, overlap_time: Optional[datetime] = None
-) -> str:
+) -> list[Union[TaskStringSections, TaskGroupStringSections]]:
     assert task.start is not None
     assert task.end is not None
     start_time = task.start.strftime("%-H:%M")
@@ -54,60 +78,119 @@ def convert_task_to_string(
         else f'{"+" if task.end_diff>=0 else "-"}{process_mins_to_timedelta(abs(task.end_diff))}'
     )
     subtask_indentation = "\t" * subtask_level
-    wc_begin = wc_end = ""
-    if overlap_time is not None and overlap_time < task.end:
-        wc_begin, wc_end = f"\033[{OVERLAP_COLOR}", "\033[0m"
-    output = (
-        f"{start_diff}\t{subtask_indentation}"
-        f"{wc_begin}"
-        f"{start_time}-{end_time}:"
-        f"\t{task.name} |{task.uuid}| ({process_mins_to_timedelta(task.time)})"
-        f"{wc_end}"
-        f"\t{end_diff}\n"
-    )
-    output += task.notes
-    output += convert_taskgroups_to_string(
+
+    output = [
+        TaskStringSections(
+            start_diff=f"{start_diff}\t",
+            indentation=f"{subtask_indentation}",
+            start=f"{start_time}",
+            end=f"-{end_time}:\t",
+            name=f"{task.name} ",
+            uuid=f"|{task.uuid}| ",
+            time=f"({process_mins_to_timedelta(task.time)})",
+            end_diff=f"\t{end_diff}",
+            notes=task.notes,
+            is_overlap=overlap_time is not None and overlap_time < task.end,
+        )
+    ] + convert_taskgroups_to_string_sections(
         task.subtaskgroups, subtask_level + 1, overlap_time
     )
     return output
 
 
-def convert_taskgroups_to_string(
+def convert_to_string(
+    item: Union[Task, list[TaskGroup]],
+    subtask_level: int = 0,
+    overlap_time: Optional[datetime] = None,
+) -> str:
+    if isinstance(item, Task):
+        task_str_sections = convert_task_to_string_sections(
+            item, subtask_level, overlap_time
+        )
+    else:
+        task_str_sections = convert_taskgroups_to_string_sections(
+            item, subtask_level, overlap_time
+        )
+    output = ""
+    for section in task_str_sections:
+        if isinstance(section, TaskStringSections):
+            wc_begin = wc_end = ""
+            if section.is_overlap:
+                wc_begin, wc_end = f"\033[{OVERLAP_COLOR}", "\033[0m"
+            output += (
+                section.start_diff
+                + section.indentation
+                + wc_begin
+                + section.start
+                + section.end
+                + section.name
+                + section.uuid
+                + section.time
+                + wc_end
+                + section.end_diff
+                + "\n"
+                + section.notes
+            )
+        elif isinstance(section, TaskGroupStringSections):
+            output += (
+                section.user_specified_start
+                + "".join(section.notes)
+                + section.user_specified_end
+            )
+
+            if section.is_break:
+                output += "\n"
+    return output
+
+
+def convert_taskgroups_to_string_sections(
     taskgroups: list[TaskGroup],
     subtask_level: int = 0,
     default_overlap_time: Optional[datetime] = None,
-) -> str:
+) -> list[Union[TaskStringSections, TaskGroupStringSections]]:
     output = []
     for tgidx, taskgroup in enumerate(taskgroups):
-        string = ""
-        if taskgroup.user_specified_start is not None:
-            string += (
-                "\t" * subtask_level
-                + taskgroup.user_specified_start.strftime("%-H:%M")
-                + "\n"
+        if taskgroup.user_specified_start:
+            output.append(
+                TaskGroupStringSections(
+                    user_specified_start=(
+                        "\t" * subtask_level
+                        + taskgroup.user_specified_start.strftime("%-H:%M")
+                        + "\n"
+                    )
+                )
             )
-        for task in taskgroup.tasks:
-            overlap_time = default_overlap_time
-            if tgidx < len(taskgroups) - 1:
-                # see if task is overlapping between intervals
-                if overlap_time:
-                    overlap_time = min(taskgroups[tgidx + 1].start, overlap_time)
-                else:
-                    overlap_time = taskgroups[tgidx + 1].start
-            task_str = convert_task_to_string(task, subtask_level, overlap_time)
-            string += task_str
 
-        for note in taskgroup.notes:
-            string += note
+        if taskgroup.notes:
+            output.append(TaskGroupStringSections(notes=taskgroup.notes))
 
-        if taskgroup.user_specified_end is not None:
-            string += (
-                "\t" * subtask_level
-                + taskgroup.user_specified_end.strftime("%-H:%M")
-                + "\n"
+        if taskgroup.tasks:
+            for task in taskgroup.tasks:
+                overlap_time = default_overlap_time
+                if tgidx < len(taskgroups) - 1:
+                    # see if task is overlapping between intervals
+                    if overlap_time:
+                        overlap_time = min(taskgroups[tgidx + 1].start, overlap_time)
+                    else:
+                        overlap_time = taskgroups[tgidx + 1].start
+                output += convert_task_to_string_sections(
+                    task, subtask_level, overlap_time
+                )
+
+        if taskgroup.user_specified_end:
+            output.append(
+                TaskGroupStringSections(
+                    user_specified_end=(
+                        "\t" * subtask_level
+                        + taskgroup.user_specified_end.strftime("%-H:%M")
+                        + "\n"
+                    )
+                )
             )
-        output.append(string)
-    return "\n".join(output)
+        if tgidx < len(taskgroups) - 1:  # reduce unnecessary break at end of taskgroups
+            output.append(TaskGroupStringSections(is_break=True))
+
+    return output
 
 
 def write_taskgroups(taskgroups: list[TaskGroup], filename: str) -> None:
@@ -120,8 +203,10 @@ def write_taskgroups(taskgroups: list[TaskGroup], filename: str) -> None:
 
 
 def convert_taskgroups_to_lines(
-    taskgroups: list[TaskGroup], lines: list[str]
+    taskgroups: list[TaskGroup], lines: Optional[list[str]] = None
 ) -> list[str]:
+    if lines is None:
+        lines = []
     towrite = []
     if taskgroups:
         for line in lines:
@@ -130,10 +215,11 @@ def convert_taskgroups_to_lines(
             if not line.endswith("\n"):
                 line += "\n"
             towrite.append(line)
-        towrite.append(f"{SPLITTER}\n\n")
+        if lines:
+            towrite.append(f"{SPLITTER}\n\n")
 
         # get tasks
-        towrite.append(convert_taskgroups_to_string(taskgroups))
+        towrite += convert_to_string(taskgroups).splitlines(keepends=True)
     return towrite
 
 
@@ -312,7 +398,7 @@ def _process_taskgroups(
         )
 
     if tasks or taskgroup_notes:
-        if not tasks and start or start:
+        if not tasks and start:
             start, taskgroup_notes = None, [start_line] + taskgroup_notes
         taskgroups.append(
             TaskGroup(tasks, user_specified_start=start, notes=taskgroup_notes)
