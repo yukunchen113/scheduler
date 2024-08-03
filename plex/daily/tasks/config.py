@@ -96,6 +96,10 @@ def convert_taskgroups_to_string(
                     overlap_time = taskgroups[tgidx + 1].start
             task_str = convert_task_to_string(task, subtask_level, overlap_time)
             string += task_str
+
+        for note in taskgroup.notes:
+            string += note
+
         if taskgroup.user_specified_end is not None:
             string += (
                 "\t" * subtask_level
@@ -109,13 +113,13 @@ def convert_taskgroups_to_string(
 def write_taskgroups(taskgroups: list[TaskGroup], filename: str) -> None:
     with open(filename) as f:
         lines = f.readlines()
-    towrite = update_taskgroups_in_lines(taskgroups, lines)
+    towrite = convert_taskgroups_to_lines(taskgroups, lines)
     with open(filename, "w") as f:
         for line in towrite:
             f.write(line)
 
 
-def update_taskgroups_in_lines(
+def convert_taskgroups_to_lines(
     taskgroups: list[TaskGroup], lines: list[str]
 ) -> list[str]:
     towrite = []
@@ -212,19 +216,21 @@ def process_task_line(
 
 
 def _process_taskgroups(
-    lines_with_level: list[tuple[LINE_TYPE, int]]
+    lines_with_level: list[tuple[LINE_TYPE, int, str]]
 ) -> list[TaskGroup]:
-    sublines_with_level: list[tuple[LINE_TYPE, int]] = []
+    sublines_with_level: list[tuple[LINE_TYPE, int, str]] = []
 
     taskgroups: list[TaskGroup] = []
-    start, end = None, None
+    start, start_line = None, ""
     tasks: list[Task] = []
     notes = ""
-    for item, level in lines_with_level:
+    taskgroup_notes = []
+
+    for item, level, orig_line in lines_with_level:
         if level:
             # accumulate sublines
             if tasks:
-                sublines_with_level.append((item, level - 1))
+                sublines_with_level.append((item, level - 1, orig_line))
             # ignore subtasks that don't have an associated task
             # even if they have start and end diffs on them.
             continue
@@ -247,7 +253,7 @@ def _process_taskgroups(
         elif isinstance(item, datetime):
             if not tasks:
                 # start
-                start, end = item, None
+                start, start_line = item, orig_line
             else:
                 # clear the end of this task group
                 tasks[-1] = dataclasses.replace(
@@ -255,9 +261,13 @@ def _process_taskgroups(
                     subtaskgroups=_process_taskgroups(sublines_with_level),
                     notes=notes,
                 )
+
                 taskgroups.append(
                     TaskGroup(
-                        tasks, user_specified_start=start, user_specified_end=item
+                        tasks,
+                        user_specified_start=start,
+                        user_specified_end=item,
+                        notes=taskgroup_notes,
                     )
                 )
                 notes = ""
@@ -265,7 +275,8 @@ def _process_taskgroups(
 
                 # set up new taskgroup
                 tasks = []
-                start, end = end, None
+                taskgroup_notes = []
+                start, start_line = None, ""
 
         elif item is None:
             if tasks:
@@ -274,17 +285,24 @@ def _process_taskgroups(
                     subtaskgroups=_process_taskgroups(sublines_with_level),
                     notes=notes,
                 )
+            if tasks or taskgroup_notes or start:
+                if not tasks and start:
+                    start, taskgroup_notes = None, [start_line] + taskgroup_notes
                 taskgroups.append(
-                    TaskGroup(tasks, user_specified_start=start, user_specified_end=end)
+                    TaskGroup(tasks, user_specified_start=start, notes=taskgroup_notes)
                 )
                 sublines_with_level = []
                 notes = ""
             assert not sublines_with_level
             tasks = []
-            start, end = None, None
+            taskgroup_notes = []
+            start, start_line = None, ""
+
         elif isinstance(item, str):
             if tasks:
                 notes += item
+            else:
+                taskgroup_notes.append(item)
 
     if tasks:
         tasks[-1] = dataclasses.replace(
@@ -292,9 +310,14 @@ def _process_taskgroups(
             subtaskgroups=_process_taskgroups(sublines_with_level),
             notes=notes,
         )
+
+    if tasks or taskgroup_notes:
+        if not tasks and start or start:
+            start, taskgroup_notes = None, [start_line] + taskgroup_notes
         taskgroups.append(
-            TaskGroup(tasks, user_specified_start=start, user_specified_end=end)
+            TaskGroup(tasks, user_specified_start=start, notes=taskgroup_notes)
         )
+
     return taskgroups
 
 
@@ -309,7 +332,7 @@ def process_taskgroups_from_lines(
     for line in lines:
         task, subtask_level = process_task_line(line)
         if task is not None:
-            lines_with_level.append((task, subtask_level))
+            lines_with_level.append((task, subtask_level, line))
             level = subtask_level
         elif re.match(TIME_FORMAT, line.strip()) is not None:
             num_tabs, specified_time_str = re.findall(
@@ -318,17 +341,19 @@ def process_taskgroups_from_lines(
             specified_time = process_time_to_datetime(
                 specified_time_str, default_datetime
             )
-            lines_with_level.append((specified_time, len(num_tabs)))
+            lines_with_level.append((specified_time, len(num_tabs), line))
             level = len(num_tabs)
         elif not line.strip():
-            lines_with_level.append((None, -1))
+            lines_with_level.append((None, -1, line))
         else:
-            lines_with_level.append((line, level))
+            lines_with_level.append((line, level, line))
+
     # assign levels to everything
     level = 0
-    for idx, (item, clevel) in list(enumerate(lines_with_level))[::-1]:
+    for idx, (item, clevel, line) in list(enumerate(lines_with_level))[::-1]:
         level = clevel if clevel >= 0 else level
-        lines_with_level[idx] = (item, level)
+        lines_with_level[idx] = (item, level, line)
+
     # process taskgroups
     return _process_taskgroups(lines_with_level)
 

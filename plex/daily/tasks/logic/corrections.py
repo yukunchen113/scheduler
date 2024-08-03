@@ -151,6 +151,7 @@ def sync_taskgroups_with_timing(
     taskgroups = correct_timing_in_taskgroups(timing_tasks, taskgroups)
     # recalculate start and ends
     taskgroups = calculate_times_in_taskgroup_list(taskgroups, start_datetime)
+
     return taskgroups
 
 
