@@ -19,15 +19,21 @@ Here are the currently accepted commands:
 - will remove the sent data after sending.
 - selects all data until another [<filename>:command], [:end], or SPLITTER is detected.
 """
-import re
+
 import os
-from typing import TypedDict
+import re
 from datetime import datetime
-from plex.daily.config_format import TIMEDELTA_FORMAT, SPLITTER, TIME_FORMAT
+from typing import TypedDict
+
+from plex.daily.config_format import (
+    SPLITTER,
+    TIME_FORMAT,
+    TIMEDELTA_FORMAT,
+    make_daily_filename,
+)
 from plex.daily.template.base import ReplacementsType
-from plex.daily.template.config import process_replacements
 from plex.daily.template.calculations import evaluate_config_duration
-from plex.daily.config_format import make_daily_filename
+from plex.daily.template.config import process_replacements
 
 COMMAND_PATTERN = r"\[([^:]+)?(?:\:([^:]+))?\](?: \({0}:(?:\|{1}-{1})?\))?".format(
     TIMEDELTA_FORMAT, TIME_FORMAT
@@ -41,9 +47,7 @@ class CommandSpec(TypedDict):
     lines: list[str]
 
 
-def get_peer_commands(filename: str) -> tuple[list[str], list[CommandSpec]]:
-    with open(filename) as f:
-        lines = f.readlines()
+def get_peer_commands(lines: list[str]) -> tuple[list[str], list[CommandSpec]]:
     is_command = False
     commands: list[CommandSpec] = []
     new_lines = []
@@ -127,13 +131,11 @@ def process_command_and_get_replacement(command: CommandSpec) -> ReplacementsTyp
     return replacements
 
 
-def update_peer_commands(filename: str) -> None:
-    new_lines, commands = get_peer_commands(filename)
+def update_peer_commands(lines: list[str]) -> list[str]:
+    new_lines, commands = get_peer_commands(lines)
     replacements: ReplacementsType = {}
     order = ["send", "summary", "default"]
     commands = sorted(commands, key=lambda command: order.index(command["command"]))
     for command in commands:
         replacements.update(process_command_and_get_replacement(command))
-    new_lines = process_replacements(new_lines, replacements)
-    with open(filename, "w") as f:
-        f.writelines("".join(new_lines))
+    return process_replacements(new_lines, replacements)

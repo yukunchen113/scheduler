@@ -85,7 +85,7 @@ def calculate_times_in_taskgroup_list(
     for taskgroup in taskgroups:
         newtg = calculate_times_in_taskgroup(taskgroup, start_time)
         if not newtg.is_empty:
-            assert newtg.end
-            start_time = newtg.end
+            if newtg.end:
+                start_time = newtg.end
             newtgs.append(newtg)
     return newtgs

@@ -1,8 +1,9 @@
 import dataclasses
-from datetime import datetime, timedelta, date
-from typing import Optional, TypedDict, Any, Union
 import json
 import uuid
+from datetime import date, datetime, timedelta
+from enum import Enum
+from typing import Any, Optional, TypedDict, Union
 
 
 class TimeType(TypedDict):
@@ -13,6 +14,11 @@ class TimeType(TypedDict):
 
 
 DEFAULT_START_TIME: TimeType = dict(hour=7, minute=30, second=0, microsecond=0)
+
+
+class TaskType(Enum):
+    regular = 0
+    deletion_request = 1
 
 
 @dataclasses.dataclass(frozen=True)
@@ -54,6 +60,8 @@ class TaskGroup:
     user_specified_start: Optional[datetime] = None
     user_specified_end: Optional[datetime] = None
 
+    notes: list[str] = dataclasses.field(default_factory=list)
+
     def __post_init__(self):
         assert (
             self.user_specified_start is None or self.user_specified_end is None
@@ -61,12 +69,16 @@ class TaskGroup:
 
     @property
     def start(self):
+        if not self.tasks and self.notes:
+            return self.user_specified_start or self.user_specified_end
         assert self.tasks, "task list is empty"
         return self.user_specified_start or self.tasks[0].start
 
     @property
     def end(self):
         # calculate end without end diff
+        if not self.tasks and self.notes:
+            return self.user_specified_start or self.user_specified_end
         assert self.tasks, "task list is empty"
         if self.tasks[-1].end_diff is not None and self.tasks[-1].end_diff < 0:
             end = self.tasks[-1].end - timedelta(minutes=self.tasks[-1].end_diff)
@@ -78,7 +90,8 @@ class TaskGroup:
 
     @property
     def is_empty(self):
-        return not len(self.tasks)
+        return not len(self.tasks + self.notes)
+
 
 class TaskJsonEncoder(json.JSONEncoder):
     def default(self, o):
@@ -88,8 +101,10 @@ class TaskJsonEncoder(json.JSONEncoder):
             return o.isoformat()
         return super().default(o)
 
+
 def convert_to_json(task: Union[Task, TaskGroup]):
     return json.dumps(task, cls=TaskJsonEncoder)
+
 
 def add_tasks(taskgroup: TaskGroup, tasks: list[Task]):
     """Adds tasks to taskgroup."""
@@ -99,12 +114,14 @@ def add_tasks(taskgroup: TaskGroup, tasks: list[Task]):
         taskgroup.tasks += tasks
     return taskgroup
 
+
 def pop_task(taskgroup: TaskGroup):
     if taskgroup.user_specified_end:
         task = taskgroup.tasks.pop(0)
     else:
         task = taskgroup.tasks.pop()
     return task
+
 
 def get_all_tasks_in_taskgroups(taskgroups: list[TaskGroup]) -> list[Task]:
     """Gets all tasks and subtasks in taskgroups"""
