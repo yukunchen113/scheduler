@@ -39,6 +39,8 @@ def main(
             If this is the first time running with something other than file, remember to first push your changes.
             Available options: (file, notion)
     """
+    source = TaskSource(source)
+
     if date:
         assert not tomorrow, "cannot specify tomorrow when date is specified."
         try:
@@ -59,7 +61,7 @@ def main(
         filename = datestr
     filename = make_daily_filename(filename, not no_process_daily)
     if not no_process_daily:
-        process_daily_file(datestr, filename)
+        process_daily_file(datestr, filename, source)
 
     if print_json:
         print(get_json_str(datestr, filename))

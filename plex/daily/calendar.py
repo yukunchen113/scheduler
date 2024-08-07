@@ -66,7 +66,7 @@ def update_calendar_with_tasks(tasks: list[Task], datestr: str) -> dict[str, Tas
                     summary=task.name,
                     start=new_task.start,
                     end=new_task.end,
-                    notes=task.notes,
+                    notes="".join(task.notes),
                     date_id=date_id,
                 )
     task_mapping = new_task_mapping
@@ -90,7 +90,7 @@ def update_calendar_with_tasks(tasks: list[Task], datestr: str) -> dict[str, Tas
                 summary=task.name,
                 start=task.start,
                 end=task.end,
-                notes=task.notes,
+                notes="".join(task.notes),
                 date_id=date_id,
             )
         except Exception as exc:

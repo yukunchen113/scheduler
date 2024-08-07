@@ -40,12 +40,21 @@ from plex.daily.config_format import SPLITTER
 from plex.daily.template.base import ReplacementsType
 from plex.daily.template.config import process_replacements
 from plex.daily.timing.base import pack_timing_uuid
-from plex.daily.timing.process import TIMING_SET_TIME_PATTERN
+from plex.daily.timing.process import (
+    TIMING_SET_TIME_PATTERN,
+    gather_existing_uuids_from_lines,
+    unpack_timing_uuid,
+)
+from plex.transform.base import TRANSFORM, LineSection, Metadata, TransformStr
 
 TEMPLATE_PATTERN = r"\{([^:]*)(?:\:([^:]*))?\}"
 TEMPLATE_BASE_DIR = "routines"
 
 DEFAULT_TEMPLATE_SECTION = "__default__:\n"
+
+
+def get_template_base_dir():
+    return TEMPLATE_BASE_DIR
 
 
 def read_sections_from_template(
@@ -110,7 +119,7 @@ def is_template_line(line: str) -> bool:
 
 
 def process_template_lines(
-    lines: list[str],
+    lines: list[TransformStr],
     datestr: str,
     is_main_file: bool,
     used_uuids: Optional[dict[str, int]] = None,
@@ -119,7 +128,7 @@ def process_template_lines(
     for line in lines:
         if is_template_line(line):
             dfile, section = re.findall(TEMPLATE_PATTERN, line)[0]
-            path = os.path.join(TEMPLATE_BASE_DIR, dfile + ".*")
+            path = os.path.join(get_template_base_dir(), dfile + ".*")
             files = glob.glob(path)
             if len(files) != 1:
                 print(
@@ -152,7 +161,10 @@ def update_routine_templates_in_file(filename, datestr, is_main_file=False):
 
 
 def update_routine_templates(
-    lines: list[str], datestr: str, is_main_file: bool = False
-) -> list[str]:
-    replacements = process_template_lines(lines, datestr, is_main_file)
+    lines: list[TransformStr], datestr: str, is_main_file: bool = False
+) -> list[TransformStr]:
+    used_uuids = defaultdict(lambda: 0)
+    for uuid in gather_existing_uuids_from_lines(lines):
+        used_uuids[unpack_timing_uuid(uuid)[0]] += 1
+    replacements = process_template_lines(lines, datestr, is_main_file, used_uuids)
     return process_replacements(lines, replacements)

@@ -11,6 +11,7 @@ from notion_client import Client
 
 CREDENTIALS_BASEPATH = os.path.join(os.environ["HOME"], ".credentials/")
 PAGE_NAME = "Schedule"
+DATABASE = "Task Details"
 
 
 def get_secret():
@@ -26,21 +27,77 @@ def get_client() -> Client:
 
 
 @functools.cache
-def get_page():
+def get_page(page_name: str = PAGE_NAME):
     notion = get_client()
-    results = notion.search(query=PAGE_NAME).get("results")
+    results = notion.search(query=page_name).get("results")
     if not results:
         raise ValueError(
-            f"Page '{PAGE_NAME}' not found. Please give your integrations access to a page named '{PAGE_NAME}'"
+            f"Page '{page_name}' not found. Please give your integrations access to a page named '{page_name}'"
         )
     return results[0]
 
 
-def get_contents(block_id: Optional[str] = None):
+def process_notion_result_to_notion_content(
+    result: dict, existing_database_content: dict[str, "DatabaseContent"] = {}
+) -> Optional["NotionContent"]:
+    for ntype in NotionType:
+        if ntype.value in result:
+            sections = []
+            for nsection in result[ntype.value]["rich_text"]:
+                # check for start and end dates:
+                if nsection.get("mention") and nsection["mention"].get("date"):
+                    date_data = nsection["mention"].get("date")
+                    sections.append(
+                        NotionSection(
+                            content="",
+                            start_datetime=datetime.fromisoformat(
+                                date_data["start"]
+                            ).date()
+                            if date_data["start"]
+                            else None,
+                            end_datetime=datetime.fromisoformat(date_data["end"]).date()
+                            if date_data["end"]
+                            else None,
+                        )
+                    )
+                else:
+                    database_content = None
+                    if nsection["text"].get("link"):
+                        database_content = existing_database_content.get(
+                            nsection["text"]["link"]["url"]
+                        )
+                    sections.append(
+                        NotionSection(
+                            content=nsection["text"]["content"],
+                            color=nsection["annotations"]["color"],
+                            database_content=database_content,
+                        )
+                    )
+            return NotionContent(
+                ntype=ntype, sections=sections, notion_uuid=result["id"]
+            )
+    return None
+
+
+def get_contents(block_id: Optional[str] = None) -> list["NotionContent"]:
     notion = get_client()
     if block_id is None:
         block_id = get_page()["id"]
-    return notion.blocks.children.list(block_id)
+    contents = []
+    database_content = {
+        make_database_content_into_link(content)["url"]: content
+        for content in pull_database_contents_from_notion()
+    }
+
+    for result in notion.blocks.children.list(block_id).get("results"):
+        notion_content = process_notion_result_to_notion_content(
+            result, database_content
+        )
+        if notion_content is not None:
+            if result.get("has_children"):
+                notion_content.children = get_contents(block_id=result["id"])
+            contents.append(notion_content)
+    return contents
 
 
 class NotionType(Enum):
@@ -58,6 +115,7 @@ class NotionSection:
     start_datetime: Optional[Union[date, datetime]] = None
     end_datetime: Optional[Union[date, datetime]] = None
     color: str = "default"
+    database_content: Optional["DatabaseContent"] = None
 
 
 @dataclass
@@ -65,6 +123,7 @@ class NotionContent:
     ntype: NotionType
     sections: list[NotionSection]
     notion_uuid: Optional[str] = None
+    children: list["NotionContent"] = field(default_factory=list)
 
 
 @dataclass
@@ -75,6 +134,13 @@ class NotionContentGroup:
     @property
     def ntype(self):
         return NotionType.synced_block
+
+
+def make_database_content_into_link(database_content: "DatabaseContent"):
+    link = None
+    if database_content and database_content.entry_uuid:
+        link = {"url": "/" + database_content.entry_uuid.replace("-", "")}
+    return link
 
 
 def make_notion_json(content: Union[NotionContentGroup, NotionContent]):
@@ -101,11 +167,21 @@ def make_notion_json(content: Union[NotionContentGroup, NotionContent]):
             if section.content:
                 rich_text.append(
                     {
-                        "text": {"content": section.content},
+                        "text": {
+                            "content": section.content,
+                            "link": make_database_content_into_link(
+                                section.database_content
+                            ),
+                        },
                         "annotations": {"color": section.color},
                     }
                 )
-        return {content.ntype.value: {"rich_text": rich_text}}
+        return {
+            content.ntype.value: {
+                "rich_text": rich_text,
+                "children": [make_notion_json(child) for child in content.children],
+            },
+        }
     else:
         return {
             content.ntype.value: {
@@ -127,12 +203,39 @@ def update_task(n_content: Union[NotionContentGroup, NotionContent]):
     return None  # no item found
 
 
+def get_all_database_contents_from_notion_content(
+    content: Union[NotionContentGroup, NotionContent]
+):
+    database_contents = []
+    if isinstance(content, NotionContentGroup):
+        for subcontent in content.contents:
+            database_contents += get_all_database_contents_from_notion_content(
+                subcontent
+            )
+    elif isinstance(content, NotionContent):
+        for section in content.sections:
+            if section.database_content is not None:
+                database_contents.append(section.database_content)
+            for subcontent in content.children:
+                database_contents += get_all_database_contents_from_notion_content(
+                    subcontent
+                )
+    return database_contents
+
+
 def add_tasks_after(
     n_contents: list[Union[NotionContentGroup, NotionContent]],
     after_uuid: Optional[str] = None,
 ):
     notion = get_client()
     page_uuid = get_page()["id"]
+
+    database_contents = []
+    for content in n_contents:
+        database_contents += get_all_database_contents_from_notion_content(content)
+
+    update_database_contents_in_notion(database_contents)
+
     # append after specified block
     if after_uuid is None:
         output = notion.blocks.children.append(
@@ -159,6 +262,90 @@ def delete_block(block: NotionContent):
     if block.notion_uuid:
         notion = get_client()
         notion.blocks.delete(block.notion_uuid)
+
+
+@dataclass
+class DatabaseContent:
+    name: str
+    uuid: str
+    notes: list[NotionContent] = field(default_factory=list)
+    entry_uuid: str = ""
+
+
+class DatabaseProperties(Enum):
+    """Do not chase these values unless you want drop the database"""
+
+    name = "name"
+    uuid = "uuid"
+
+
+@functools.cache
+def get_database():
+    notion = get_client()
+    try:
+        database = get_page(DATABASE)
+        if database["in_trash"]:
+            raise ValueError("Database is deleted.")
+    except ValueError:
+        database = notion.databases.create(
+            parent={"type": "page_id", "page_id": get_page()["id"]},
+            title=[
+                {
+                    "type": "text",
+                    "text": {
+                        "content": DATABASE,
+                    },
+                },
+            ],
+            properties={
+                DatabaseProperties.name.value: {
+                    "title": {},
+                },
+                DatabaseProperties.uuid.value: {
+                    "rich_text": {},
+                },
+            },
+        )
+    return database
+
+
+def pull_database_contents_from_notion():
+    return [
+        DatabaseContent(
+            name=result["properties"]["name"]["title"][0]["text"]["content"],
+            uuid=result["properties"]["uuid"]["rich_text"][0]["text"]["content"],
+            entry_uuid=result["id"],
+        )
+        for result in get_client()
+        .databases.query(get_page(DATABASE)["id"])
+        .get("results")
+    ]
+
+
+def update_database_contents_in_notion(contents: list[DatabaseContent]):
+    notion = get_client()
+    database = get_database()
+    cur_contents = {
+        content.uuid: content for content in pull_database_contents_from_notion()
+    }
+
+    for content in contents:
+        if not content.entry_uuid:
+            if content.uuid in cur_contents:
+                content.entry_uuid = cur_contents[content.uuid].entry_uuid
+            else:
+                page = notion.pages.create(
+                    parent={"type": "database_id", "database_id": database["id"]},
+                    properties={
+                        DatabaseProperties.name.value: {
+                            "title": [{"text": {"content": content.name}}],
+                        },
+                        DatabaseProperties.uuid.value: {
+                            "rich_text": [{"text": {"content": content.uuid}}],
+                        },
+                    },
+                )
+                content.entry_uuid = page["id"]
 
 
 if __name__ == "__main__":

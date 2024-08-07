@@ -22,11 +22,12 @@ from plex.daily.timing.process import (
     get_timing_from_lines,
     is_valid_timing_str,
 )
+from plex.transform.base import TRANSFORM, LineSection, Metadata, TransformStr
 
 
 def apply_preprocessing(
-    timing: list[str], tasks: list[str], datestr: str
-) -> tuple[list[str], list[str]]:
+    timing: list[TransformStr], tasks: list[TransformStr], datestr: str
+) -> tuple[list[TransformStr], list[TransformStr]]:
     tasks = process_templates(timing, tasks, datestr)
     timing, tasks = process_timings_in_task_section(timing, tasks)
     timing, tasks = remove_timings_given_task_deletion_specification(timing, tasks)
@@ -59,8 +60,8 @@ def remove_timing_index_from_timing(timing_config: TimingConfig, index: int):
 
 
 def remove_timings_given_task_deletion_specification(
-    timing_lines: list[str], task_lines: list[str]
-) -> tuple[list[str], list[str]]:
+    timing_lines: list[TransformStr], task_lines: list[TransformStr]
+) -> tuple[list[TransformStr], list[TransformStr]]:
     timings, timing_lines = get_timing_from_lines(timing_lines)
     cur_timing_map = get_timing_uuid_mapping(timings)
     for line in task_lines:
@@ -73,9 +74,11 @@ def remove_timings_given_task_deletion_specification(
         line_num = timing_lines.index(existing_string)
         remove_timing_index_from_timing(cur_timing, index)
         if not cur_timing.timings:
-            timing_lines.pop(line_num)
+            TRANSFORM.delete(timing_lines.pop(line_num))
         else:
-            timing_lines[line_num] = convert_timing_to_str(cur_timing)
+            timing_lines[line_num] = TRANSFORM.replace(
+                timing_lines[line_num], convert_timing_to_str(cur_timing)
+            )
     return timing_lines, task_lines
 
 
@@ -87,8 +90,8 @@ def replace_list_bullet_with_indent(line: str):
 
 
 def process_templates(
-    timing_lines: list[str], task_lines: list[str], datestr: str
-) -> tuple[list[str], list[str]]:
+    timing_lines: list[TransformStr], task_lines: list[TransformStr], datestr: str
+) -> list[TransformStr]:
     new_task_lines = []
     used_uuids = defaultdict(lambda: 0)
 
@@ -98,13 +101,19 @@ def process_templates(
     for line in task_lines:
         if is_template_line(line):
             indent = re.match(r"^\t*", line).group()
-            task_lines = [
-                indent + replace_list_bullet_with_indent(i)
-                for i in sum(
-                    process_template_lines([line], datestr, True, used_uuids).values(),
-                    start=[],
-                )
-            ]
+            task_lines = TRANSFORM.nreplace(
+                line,
+                [
+                    indent + replace_list_bullet_with_indent(i)
+                    for i in sum(
+                        process_template_lines(
+                            [line], datestr, True, used_uuids
+                        ).values(),
+                        start=[],
+                    )
+                ],
+                metadata=Metadata(section=LineSection.task),
+            )
         else:
             task_lines = [line]
         new_task_lines += task_lines
@@ -112,12 +121,12 @@ def process_templates(
 
 
 def process_timings_in_task_section(
-    timing_lines: list[str], task_lines: list[str]
-) -> tuple[list[str], list[str]]:
+    timing_lines: list[TransformStr], task_lines: list[TransformStr]
+) -> tuple[list[TransformStr], list[TransformStr]]:
     """
     Args:
-        timing_lines (list[str]): timing lies
-        task_lines (list[str]): task lines
+        timing_lines (list[TransformStr]): timing lies
+        task_lines (list[TransformStr]): task lines
     """
     new_task_lines = []
     task_uuid_count = defaultdict(lambda: 0)
@@ -128,7 +137,12 @@ def process_timings_in_task_section(
             )
 
             # add timing
-            timing_lines += [convert_timing_to_str(config) for config in timing_configs]
+            timing_lines += TRANSFORM.add_after(
+                line,
+                [convert_timing_to_str(config) for config in timing_configs],
+                timing_lines[-1],
+                Metadata(section=LineSection.timing),
+            )
             indent = re.match(r"^\t*", line).group()
 
             # add task
@@ -137,9 +151,14 @@ def process_timings_in_task_section(
                     get_taskgroups_from_timing_configs(timing_configs, task_uuid_count)
                 )
             )
-            task_lines = [
-                (len(indent) - 1) * "\t" + convert_to_string(task) for task in tasks
-            ]
+            task_lines = TRANSFORM.nreplace(
+                line,
+                [
+                    (len(indent) - 1) * "\t" + convert_to_string(task)[0]
+                    for task in tasks
+                ],
+                metadata=Metadata(section=LineSection.task),
+            )
         else:
             task_lines = [line]
 

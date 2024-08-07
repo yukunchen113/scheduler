@@ -34,6 +34,7 @@ from plex.daily.config_format import (
 from plex.daily.template.base import ReplacementsType
 from plex.daily.template.calculations import evaluate_config_duration
 from plex.daily.template.config import process_replacements
+from plex.transform.base import TRANSFORM, LineSection, Metadata, TransformStr
 
 COMMAND_PATTERN = r"\[([^:]+)?(?:\:([^:]+))?\](?: \({0}:(?:\|{1}-{1})?\))?".format(
     TIMEDELTA_FORMAT, TIME_FORMAT
@@ -47,7 +48,9 @@ class CommandSpec(TypedDict):
     lines: list[str]
 
 
-def get_peer_commands(lines: list[str]) -> tuple[list[str], list[CommandSpec]]:
+def get_peer_commands(
+    lines: list[TransformStr],
+) -> tuple[list[TransformStr], list[CommandSpec]]:
     is_command = False
     commands: list[CommandSpec] = []
     new_lines = []
@@ -88,6 +91,7 @@ def get_peer_commands(lines: list[str]) -> tuple[list[str], list[CommandSpec]]:
             if is_command:
                 # accumulate lines for action:
                 commands[-1]["lines"].append(line)
+                TRANSFORM.delete(line)
             else:
                 # accumulate lines that don't correspond to command
                 new_lines.append(line)
@@ -131,7 +135,7 @@ def process_command_and_get_replacement(command: CommandSpec) -> ReplacementsTyp
     return replacements
 
 
-def update_peer_commands(lines: list[str]) -> list[str]:
+def update_peer_commands(lines: list[TransformStr]) -> list[TransformStr]:
     new_lines, commands = get_peer_commands(lines)
     replacements: ReplacementsType = {}
     order = ["send", "summary", "default"]

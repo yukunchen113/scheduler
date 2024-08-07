@@ -38,6 +38,8 @@ def get_taskgroups_from_timing_configs(
                         timing_config.subtimings, uuid_count
                     )
                 ),
+                source_str=timing_config.source_str,
+                is_source_timing=True,
             )
             for midx, minutes in enumerate(
                 timing_config.timings, uuid_count[timing_config.uuid]
@@ -47,11 +49,15 @@ def get_taskgroups_from_timing_configs(
         if timing_config.set_time:
             if timing_config.set_time.is_start:
                 new_taskgroup = TaskGroup(
-                    tasks=tasks, user_specified_start=timing_config.set_time.datetime
+                    tasks=tasks,
+                    user_specified_start=timing_config.set_time.datetime,
+                    is_user_specified_start_source_str_timing=True,
                 )
             else:
                 new_taskgroup = TaskGroup(
-                    tasks=tasks, user_specified_end=timing_config.set_time.datetime
+                    tasks=tasks,
+                    user_specified_end=timing_config.set_time.datetime,
+                    is_user_specified_end_source_str_timing=True,
                 )
 
             taskgroups.append(new_taskgroup)

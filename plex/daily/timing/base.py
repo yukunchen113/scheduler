@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
+from plex.transform.base import TransformStr
+
 
 @dataclass(frozen=True)
 class SetTime:
@@ -21,6 +23,7 @@ class TimingConfig:
     # these parameters are for string reconstruction
     end_line: str = ""
     subtiming_level: int = 0
+    source_str: Optional[TransformStr] = None
 
     @property
     def timings(self):
