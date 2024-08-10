@@ -9,6 +9,7 @@ from plex.daily import process_auto_update, process_daily_file, sync_tasks_to_ca
 from plex.daily.base import TaskSource
 from plex.daily.config_format import make_daily_filename
 from plex.daily.endpoint import get_json_str
+from plex.daily.tasks.push_notes import overwrite_tasks_in_notion, sync_tasks_to_notion
 
 DAILY_BASEDIR = "daily"
 
@@ -76,13 +77,14 @@ def main(
 
     elif push:
         if not os.path.exists(filename):
-            raise ValueError(
-                f"Daily file {filename} doesn't exist. Unable to push to calendar."
-            )
+            raise ValueError(f"Daily file {filename} doesn't exist. Unable to push.")
+            # write out contents
+        overwrite_tasks_in_notion(datestr)
+        print("Pushing to calendar")
         sync_tasks_to_calendar(datestr, filename, push_only=True)
 
     if autoupdate:
-        process_auto_update(datestr, filename)
+        process_auto_update(datestr, filename, source)
 
 
 if __name__ == "__main__":

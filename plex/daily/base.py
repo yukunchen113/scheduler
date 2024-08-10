@@ -2,6 +2,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from pprint import pformat
 
 from plex.daily.calendar import (
     update_calendar_with_taskgroups,
@@ -26,10 +27,11 @@ from plex.daily.tasks.logic import (
     sync_taskgroups_with_timing,
 )
 from plex.daily.tasks.push_notes import pull_tasks_from_notion, sync_tasks_to_notion
+from plex.daily.tasks.str_sections import flatten_string_sections
 from plex.daily.template import update_templates
 from plex.daily.timing import get_timing_from_file
 from plex.daily.timing.process import get_timing_from_lines
-from plex.daily.timing.read import split_lines_across_splitter
+from plex.daily.timing.read import split_lines_across_splitter, split_splitter_and_tasks
 from plex.transform.base import TRANSFORM, LineSection, Metadata
 
 CACHE_FILE = "cache_files/calendar_cache.pickle"
@@ -38,18 +40,6 @@ CACHE_FILE = "cache_files/calendar_cache.pickle"
 class TaskSource(Enum):
     FILE = "file"
     NOTION = "notion"
-
-
-def split_splitter_and_tasks(task_lines_with_splitter: list[str]):
-    if task_lines_with_splitter:
-        splitter_line, task_lines = [
-            task_lines_with_splitter[0]
-        ], task_lines_with_splitter[
-            1:
-        ]  # first line of tasks is the splitter
-    else:
-        splitter_line, task_lines = [], []
-    return splitter_line, task_lines
 
 
 def process_daily_file(
@@ -65,20 +55,25 @@ def process_daily_file(
     with open(filename) as file:
         lines = file.readlines()
     new_lines = process_daily_lines(datestr, lines, source)
-    assert TRANSFORM.construct_content() == new_lines
     with open(filename, "w") as f:
         for line in new_lines:
             f.write(line)
+    if source == TaskSource.NOTION:
+        sync_tasks_to_notion(datestr)
 
 
-def process_auto_update(datestr: str, filename: str) -> None:
+def process_auto_update(
+    datestr: str, filename: str, source: TaskSource = TaskSource.FILE
+) -> None:
     while True:
         with open(filename) as file:
             lines = file.readlines()
-        new_lines = process_daily_lines(datestr, lines)
+        new_lines = process_daily_lines(datestr, lines, source)
         with open(filename, "w") as f:
             for line in new_lines:
                 f.write(line)
+        if source == TaskSource.NOTION:
+            sync_tasks_to_notion(datestr)
         time.sleep(0.5)
 
 
@@ -91,9 +86,10 @@ def process_daily_lines(
         datestr (str): date in the form of %Y-%m-%d
         filename (str): filename for daily processing
     """
-    timing_lines, task_lines_with_splitter = split_lines_across_splitter(lines)
-    splitter_line, task_lines = split_splitter_and_tasks(task_lines_with_splitter)
-
+    TRANSFORM.clear()
+    timing_lines, splitter_line, task_lines = split_lines_across_splitter(
+        lines, is_separate_splitter=True
+    )
     timing_lines = [
         TRANSFORM.append(line, Metadata(section=LineSection.timing))
         for line in timing_lines
@@ -107,17 +103,21 @@ def process_daily_lines(
         )
 
     if source == TaskSource.NOTION:
-        task_lines = []
-        for section in pull_tasks_from_notion(datestr):
-            task_line = convert_string_section_to_config_str(section)
-            if task_line is None:
-                raise ValueError(f"Invalid string section unrecognized: {section}")
-            task_lines.append(
-                TRANSFORM.append(
-                    task_line,
-                    Metadata(section=LineSection.task, notion_uuid=section.notion_uuid),
+        notion_sections = pull_tasks_from_notion(datestr)
+        if notion_sections is not None:
+            task_lines = []
+            for section in flatten_string_sections(notion_sections):
+                task_line = convert_string_section_to_config_str(section)
+                if task_line is None:
+                    raise ValueError(f"Invalid string section unrecognized: {section}")
+                task_lines.append(
+                    TRANSFORM.append(
+                        task_line,
+                        Metadata(
+                            section=LineSection.task, notion_uuid=section.notion_uuid
+                        ),
+                    )
                 )
-            )
     else:
         task_lines = [
             TRANSFORM.append(task_line, Metadata(section=LineSection.task))
@@ -141,9 +141,17 @@ def process_daily_lines(
         taskgroups = calculate_times_in_taskgroup_list(taskgroups, date)
     else:
         taskgroups = sync_taskgroups_with_timing(timings, read_tasks, date)
-    return convert_taskgroups_to_lines(
-        taskgroups, timing_lines + splitter_line + task_lines
+
+    new_lines = convert_taskgroups_to_lines(
+        taskgroups, timing_lines + splitter_line + task_lines, is_skip_transform=False
     )
+
+    # validations:
+    constructed = TRANSFORM.construct_content()
+    assert (
+        constructed == new_lines
+    ), f"Constructed:\n{''.join(constructed)}\n\n Actual:\n{''.join(new_lines)}"
+    return new_lines
 
 
 def sync_tasks_to_calendar(
@@ -161,16 +169,14 @@ def sync_tasks_to_calendar(
         taskgroups = read_taskgroups(filename, date)
         taskgroups = calculate_times_in_taskgroup_list(taskgroups, date)
         if push_only:
-            # tasks = flatten_taskgroups_into_tasks(taskgroups)
-            # update_calendar_with_tasks(tasks, datestr)
-            sync_tasks_to_notion(taskgroups, filename, datestr)  # pushes to notion
+            tasks = flatten_taskgroups_into_tasks(taskgroups)
+            update_calendar_with_tasks(tasks, datestr)
             break
         else:
             taskgroups = update_calendar_with_taskgroups(taskgroups, datestr)
             if taskgroups:
                 # recalculate taskgroups
                 taskgroups = calculate_times_in_taskgroup_list(taskgroups, date)
-                sync_tasks_to_notion(taskgroups, filename, datestr)
                 write_taskgroups(taskgroups, filename)
             else:
                 time.sleep(10)

@@ -1,5 +1,6 @@
 import functools
 import os
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
@@ -38,7 +39,8 @@ def get_page(page_name: str = PAGE_NAME):
 
 
 def process_notion_result_to_notion_content(
-    result: dict, existing_database_content: dict[str, "DatabaseContent"] = {}
+    result: dict,
+    existing_database_content: Optional[dict[str, "DatabaseContent"]] = None,
 ) -> Optional["NotionContent"]:
     for ntype in NotionType:
         if ntype.value in result:
@@ -63,9 +65,19 @@ def process_notion_result_to_notion_content(
                 else:
                     database_content = None
                     if nsection["text"].get("link"):
-                        database_content = existing_database_content.get(
-                            nsection["text"]["link"]["url"]
-                        )
+                        if existing_database_content is None:
+                            database_content = get_database_content_from_row(
+                                get_client().pages.retrieve(
+                                    uuid.UUID(
+                                        nsection["text"]["link"]["url"].replace("/", "")
+                                    )
+                                )
+                            )
+                        else:
+                            database_content = existing_database_content.get(
+                                nsection["text"]["link"]["url"]
+                            )
+
                     sections.append(
                         NotionSection(
                             content=nsection["text"]["content"],
@@ -191,13 +203,21 @@ def make_notion_json(content: Union[NotionContentGroup, NotionContent]):
         }
 
 
-def update_task(n_content: Union[NotionContentGroup, NotionContent]):
+def update_task(
+    n_content: Union[NotionContentGroup, NotionContent],
+    notion_uuid: Optional[str] = None,
+):
     notion = get_client()
-    if n_content.notion_uuid is not None:  # updated existing block
+    if notion_uuid is None:
+        notion_uuid = n_content.notion_uuid
+
+    update_database_contents_in_notion(
+        get_all_database_contents_from_notion_content(n_content)
+    )
+
+    if notion_uuid is not None:  # updated existing block
         if isinstance(n_content, NotionContent):
-            return notion.blocks.update(
-                n_content.notion_uuid, **make_notion_json(n_content)
-            )
+            return notion.blocks.update(notion_uuid, **make_notion_json(n_content))
         else:
             pass
     return None  # no item found
@@ -258,10 +278,14 @@ def add_tasks_after(
                 child_content.notion_uuid = child_result["id"]
 
 
-def delete_block(block: NotionContent):
-    if block.notion_uuid:
+def delete_block(
+    block: Optional[NotionContent] = None, notion_uuid: Optional[str] = None
+):
+    if notion_uuid is None:
+        notion_uuid = block.notion_uuid
+    if notion_uuid:
         notion = get_client()
-        notion.blocks.delete(block.notion_uuid)
+        notion.blocks.delete(notion_uuid)
 
 
 @dataclass
@@ -309,13 +333,17 @@ def get_database():
     return database
 
 
+def get_database_content_from_row(result):
+    return DatabaseContent(
+        name=result["properties"]["name"]["title"][0]["text"]["content"],
+        uuid=result["properties"]["uuid"]["rich_text"][0]["text"]["content"],
+        entry_uuid=result["id"],
+    )
+
+
 def pull_database_contents_from_notion():
     return [
-        DatabaseContent(
-            name=result["properties"]["name"]["title"][0]["text"]["content"],
-            uuid=result["properties"]["uuid"]["rich_text"][0]["text"]["content"],
-            entry_uuid=result["id"],
-        )
+        get_database_content_from_row(result)
         for result in get_client()
         .databases.query(get_page(DATABASE)["id"])
         .get("results")
@@ -348,7 +376,15 @@ def update_database_contents_in_notion(contents: list[DatabaseContent]):
                 content.entry_uuid = page["id"]
 
 
+def get_block(block_id: int):
+    notion = get_client()
+    blocks = notion.blocks.retrieve(block_id)
+    if blocks.get("archived"):
+        return None
+    return process_notion_result_to_notion_content(blocks)
+
+
 if __name__ == "__main__":
     from pprint import pprint
 
-    pprint(get_contents())
+    pprint(get_block("0989afe4-c388-4595-8663-ecc29229a6bc"))

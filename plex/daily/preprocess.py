@@ -1,3 +1,4 @@
+import dataclasses
 import re
 from collections import defaultdict
 from typing import Optional
@@ -28,7 +29,7 @@ from plex.transform.base import TRANSFORM, LineSection, Metadata, TransformStr
 def apply_preprocessing(
     timing: list[TransformStr], tasks: list[TransformStr], datestr: str
 ) -> tuple[list[TransformStr], list[TransformStr]]:
-    tasks = process_templates(timing, tasks, datestr)
+    tasks = process_templates_from_tasks(timing, tasks, datestr)
     timing, tasks = process_timings_in_task_section(timing, tasks)
     timing, tasks = remove_timings_given_task_deletion_specification(timing, tasks)
     return timing, tasks
@@ -77,7 +78,14 @@ def remove_timings_given_task_deletion_specification(
             TRANSFORM.delete(timing_lines.pop(line_num))
         else:
             timing_lines[line_num] = TRANSFORM.replace(
-                timing_lines[line_num], convert_timing_to_str(cur_timing)
+                timing_lines[line_num],
+                convert_timing_to_str(cur_timing),
+                dataclasses.replace(
+                    TRANSFORM.get_metadata(
+                        timing_lines[line_num],
+                    ),
+                    is_preprocessed=True,
+                ),
             )
     return timing_lines, task_lines
 
@@ -89,7 +97,7 @@ def replace_list_bullet_with_indent(line: str):
     return line
 
 
-def process_templates(
+def process_templates_from_tasks(
     timing_lines: list[TransformStr], task_lines: list[TransformStr], datestr: str
 ) -> list[TransformStr]:
     new_task_lines = []
@@ -112,7 +120,7 @@ def process_templates(
                         start=[],
                     )
                 ],
-                metadata=Metadata(section=LineSection.task),
+                metadata=Metadata(section=LineSection.task, is_preprocessed=True),
             )
         else:
             task_lines = [line]
@@ -141,9 +149,8 @@ def process_timings_in_task_section(
                 line,
                 [convert_timing_to_str(config) for config in timing_configs],
                 timing_lines[-1],
-                Metadata(section=LineSection.timing),
+                Metadata(section=LineSection.timing, is_preprocessed=True),
             )
-            indent = re.match(r"^\t*", line).group()
 
             # add task
             tasks = flatten_taskgroups_into_tasks(
@@ -154,15 +161,17 @@ def process_timings_in_task_section(
             task_lines = TRANSFORM.nreplace(
                 line,
                 [
-                    (len(indent) - 1) * "\t" + convert_to_string(task)[0]
+                    (len(re.match(r"^\t*", line).group()) - 1) * "\t"
+                    + convert_to_string(task)[0]
                     for task in tasks
                 ],
-                metadata=Metadata(section=LineSection.task),
+                metadata=Metadata(section=LineSection.task, is_preprocessed=True),
             )
         else:
             task_lines = [line]
 
         new_task_lines += task_lines
+
     return timing_lines, new_task_lines
 
 

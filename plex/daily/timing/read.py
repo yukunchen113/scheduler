@@ -6,7 +6,21 @@ from plex.daily.timing.base import TimingConfig
 from plex.daily.timing.process import get_timing_from_lines
 
 
-def split_lines_across_splitter(all_lines: list[str]) -> list[str]:
+def split_splitter_and_tasks(task_lines_with_splitter: list[str]):
+    if task_lines_with_splitter:
+        splitter_line, task_lines = [
+            task_lines_with_splitter[0]
+        ], task_lines_with_splitter[
+            1:
+        ]  # first line of tasks is the splitter
+    else:
+        splitter_line, task_lines = [], []
+    return splitter_line, task_lines
+
+
+def split_lines_across_splitter(
+    all_lines: list[str], is_separate_splitter: bool = False
+) -> list[str]:
     lines = []
     next_lines = []
     for lidx, line in enumerate(all_lines):
@@ -15,6 +29,9 @@ def split_lines_across_splitter(all_lines: list[str]) -> list[str]:
             next_lines = all_lines[lidx:]
             break
         lines.append(line)
+    if is_separate_splitter:
+        splitter, tasks = split_splitter_and_tasks(next_lines)
+        return lines, splitter, tasks
     return lines, next_lines
 
 

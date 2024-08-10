@@ -14,6 +14,8 @@ from plex.daily.unique_id import PATTERN_UUID
 from plex.transform.base import TRANSFORM, LineSection, Metadata, TransformStr
 
 OVERLAP_COLOR = "91m"
+OVERLAP_START_FORMAT = rf"(?:\033\[{OVERLAP_COLOR})"
+OVERLAP_END_FORMAT = rf"(?:\033\[0m)"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -30,7 +32,7 @@ class TaskStringSections:
     # metadata
     notes: list[str] = dataclasses.field(default_factory=list)
     is_overlap: bool = False
-    children: list = dataclasses.field(default_factory=list)
+    children: list["StringSection"] = dataclasses.field(default_factory=list)
 
     # addition uuids for various output formats
     notion_uuid: Optional[str] = None
@@ -52,6 +54,11 @@ class TaskStringSections:
         assert any(re.fullmatch(fformat.time, self.time) for fformat in formats)
         assert any(re.fullmatch(fformat.end_diff, self.end_diff) for fformat in formats)
         return self
+
+
+def make_regex_parenthesis_non_capturing(rstring: str) -> str:
+    newstring, _ = re.subn(r"(?<!\\)\((?:\?\:)?", "(?:", rstring)
+    return newstring
 
 
 def get_field_formats(task_type: TaskType = TaskType.regular) -> TaskStringSections:
@@ -84,6 +91,103 @@ class TaskGroupStringSections:
 
 
 StringSection = Union[TaskGroupStringSections, TaskStringSections]
+
+
+def get_task_config_str_format(task_type: TaskType = TaskType.regular) -> str:
+    task_duration = rf"\(({TIMEDELTA_FORMAT})\)"
+    if task_type == TaskType.deletion_request:
+        task_duration = r"\((-)\)"
+    formats = get_field_formats(task_type)
+    return (
+        formats.start_diff  # start diff
+        + rf"(\t+)?(?:{OVERLAP_START_FORMAT})?"  # overlap start
+        + formats.start
+        + formats.end
+        + formats.name
+        + task_duration
+        + rf"(?:{OVERLAP_END_FORMAT})?"  # overlap end
+        + formats.end_diff
+    )
+
+
+def unflatten_string_sections(
+    sections: list[StringSection], indentation_level: int = 0
+):
+    # best efforts
+    new_sections = []
+    while sections:
+        subsections = []
+        while sections and len(sections[0].indentation) > indentation_level:
+            subsections.append(sections.pop(0))
+        subsections = unflatten_string_sections(subsections, indentation_level + 1)
+        if new_sections and isinstance(new_sections[-1], TaskStringSections):
+            new_sections[-1] = dataclasses.replace(
+                new_sections[-1], children=subsections
+            )
+        else:
+            new_sections += subsections
+        if sections:
+            new_sections.append(sections.pop(0))
+    return new_sections
+
+
+def convert_config_str_to_string_section(line: str):
+    # try all task formats
+    for ttype in TaskType:
+        fformat = get_field_formats(ttype)
+        for (
+            start_diff,
+            indentation,
+            overlap,
+            start,
+            end,
+            name,
+            uuid,
+            stime,
+            end_diff,
+        ) in re.findall(
+            (
+                rf"(^{make_regex_parenthesis_non_capturing(fformat.start_diff)})"
+                + rf"({make_regex_parenthesis_non_capturing(fformat.indentation)})"
+                + rf"({OVERLAP_START_FORMAT})?"
+                + rf"({make_regex_parenthesis_non_capturing(fformat.start)})"
+                + rf"({make_regex_parenthesis_non_capturing(fformat.end)})"
+                + rf"({make_regex_parenthesis_non_capturing(fformat.name)})"
+                + rf"({make_regex_parenthesis_non_capturing(fformat.uuid)})"
+                + rf"({make_regex_parenthesis_non_capturing(fformat.time)})"
+                + rf"(?:{OVERLAP_START_FORMAT})?"
+                + rf"({make_regex_parenthesis_non_capturing(fformat.end_diff)})?"
+            ),
+            line,
+        ):
+            return TaskStringSections(
+                start_diff=start_diff,
+                indentation=indentation,
+                start=start,
+                end=end,
+                name=name,
+                uuid=uuid,
+                time=stime,
+                end_diff=end_diff,
+                is_overlap=bool(overlap),
+            ).validate()
+
+    # Taskgroup string section
+    if line == "\n":
+        return TaskGroupStringSections(is_break=True)
+
+    for indentation, content in re.findall(r"(\t*)(.*)", line):
+        metadata = TRANSFORM.get_metadata(line)
+        if (
+            metadata is not None
+            and metadata.line_info is not None
+            and not metadata.line_info.is_taskgroup_note
+        ):
+            return TaskGroupStringSections(
+                indentation=indentation, user_specified_start_or_end=content
+            )
+        else:
+            return TaskGroupStringSections(note=indentation + content)
 
 
 def convert_task_to_string_sections(
@@ -193,9 +297,48 @@ def convert_taskgroups_to_string_sections(
 
 def flatten_string_sections(sections: list[StringSection]) -> list[StringSection]:
     output = []
+    if not sections:
+        return output
     for section in sections:
         output.append(section)
         if isinstance(section, TaskStringSections):
             output += flatten_string_sections(section.notes)
             output += flatten_string_sections(section.children)
+    return output
+
+
+def convert_string_section_to_config_str(section: StringSection) -> Optional[str]:
+    output = None
+    if isinstance(section, TaskStringSections):
+        wc_begin = wc_end = ""
+        if section.is_overlap:
+            wc_begin, wc_end = f"\033[{OVERLAP_COLOR}", "\033[0m"
+        output = (
+            section.start_diff
+            + section.indentation
+            + wc_begin
+            + section.start
+            + section.end
+            + section.name
+            + section.uuid
+            + (
+                " "
+                if not (section.uuid.endswith(" ") or section.time.startswith(" "))
+                else ""
+            )
+            + section.time
+            + wc_end
+            + section.end_diff
+            + "\n"
+        )
+    elif isinstance(section, TaskGroupStringSections):
+        if section.is_break:
+            output = "\n"
+        else:
+            output = (
+                section.indentation + section.user_specified_start_or_end + section.note
+            )
+    assert (
+        output.count("\n") == 1
+    ), f"Task string spec must have exactly one newline but is {output}"
     return output

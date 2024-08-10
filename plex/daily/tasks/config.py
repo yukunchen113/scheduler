@@ -17,13 +17,15 @@ from plex.daily.tasks.str_sections import (
     StringSection,
     TaskGroupStringSections,
     TaskStringSections,
+    convert_string_section_to_config_str,
     convert_task_to_string_sections,
     convert_taskgroups_to_string_sections,
     flatten_string_sections,
     get_field_formats,
+    get_task_config_str_format,
 )
 from plex.daily.unique_id import PATTERN_UUID
-from plex.transform.base import TRANSFORM, LineSection, Metadata, TransformStr
+from plex.transform.base import TRANSFORM, LineInfo, LineSection, Metadata, TransformStr
 
 OVERLAP_COLOR = "91m"
 
@@ -33,7 +35,7 @@ def convert_to_string(
     subtask_level: int = 0,
     overlap_time: Optional[datetime] = None,
     *,
-    is_transform_soft_failure: bool = True,
+    is_skip_tranform: bool = True,
 ) -> list[str]:
     if isinstance(item, Task):
         sections = convert_task_to_string_sections(item, subtask_level, overlap_time)
@@ -47,92 +49,86 @@ def convert_to_string(
         converted_str = convert_string_section_to_config_str(section)
         if converted_str is not None:
             if isinstance(section, TaskGroupStringSections) and section.is_break:
-                prev_section_string = TRANSFORM.append(
-                    converted_str,
-                    metadata=Metadata(section=LineSection.task),
-                    add_after_content=prev_section_string,
+                # line breaks for Task Groups.
+                prev_section_string = (
+                    converted_str
+                    if is_skip_tranform
+                    else TRANSFORM.append(
+                        converted_str,
+                        metadata=Metadata(
+                            section=LineSection.task,
+                            line_info=LineInfo(is_spacing_element=True),
+                        ),
+                        add_after_content=prev_section_string,
+                    )
                 )
             elif (
                 isinstance(section, (TaskGroupStringSections, TaskStringSections))
                 and section.is_source_timing
             ):
+                # new task or taskgroup item that was generated from timing.
                 if prev_section_string is not None:
-                    prev_section_string = TRANSFORM.add_after(
-                        section.source_str,
-                        [converted_str],
-                        prev_section_string,
-                        metadata=Metadata(LineSection.task),
-                        soft_failure=is_transform_soft_failure,
-                    )[0]
+                    # initially created task string
+                    prev_section_string = (
+                        converted_str
+                        if is_skip_tranform
+                        else TRANSFORM.add_after(
+                            section.source_str,
+                            [converted_str],
+                            prev_section_string,
+                            metadata=Metadata(
+                                section=LineSection.task,
+                                line_info=LineInfo(
+                                    is_taskgroup_note=isinstance(
+                                        section, TaskGroupStringSections
+                                    )
+                                    and bool(section.note)
+                                ),
+                            ),
+                            soft_failure=is_skip_tranform,
+                        )[0]
+                    )
                 else:
-                    prev_section_string = TRANSFORM.append(
-                        converted_str,
-                        metadata=Metadata(section=LineSection.task),
-                        add_after_content=prev_section_string,
+                    prev_section_string = (
+                        converted_str
+                        if is_skip_tranform
+                        else TRANSFORM.append(
+                            converted_str,
+                            metadata=Metadata(
+                                section=LineSection.task,
+                                line_info=LineInfo(
+                                    is_taskgroup_note=isinstance(
+                                        section, TaskGroupStringSections
+                                    )
+                                    and bool(section.note)
+                                ),
+                            ),
+                            add_after_content=prev_section_string,
+                        )
                     )
 
             else:
-                prev_section_string = TRANSFORM.replace(
-                    section.source_str,
-                    converted_str,
-                    soft_failure=is_transform_soft_failure,
+                # task or taskgroup string section to be replaced.
+                prev_section_string = (
+                    converted_str
+                    if is_skip_tranform
+                    else TRANSFORM.replace(
+                        section.source_str,
+                        converted_str,
+                        soft_failure=is_skip_tranform,
+                        metadata=dataclasses.replace(
+                            TRANSFORM.get_metadata(section.source_str),
+                            line_info=LineInfo(
+                                is_taskgroup_note=isinstance(
+                                    section, TaskGroupStringSections
+                                )
+                                and bool(section.note)
+                            ),
+                        ),
+                    )
                 )
             output.append(prev_section_string)
     return output
-
-
-def convert_string_section_to_config_str(section: StringSection) -> Optional[str]:
-    output = None
-    if isinstance(section, TaskStringSections):
-        wc_begin = wc_end = ""
-        if section.is_overlap:
-            wc_begin, wc_end = f"\033[{OVERLAP_COLOR}", "\033[0m"
-        output = (
-            section.start_diff
-            + section.indentation
-            + wc_begin
-            + section.start
-            + section.end
-            + section.name
-            + section.uuid
-            + (
-                " "
-                if not (section.uuid.endswith(" ") or section.time.startswith(" "))
-                else ""
-            )
-            + section.time
-            + wc_end
-            + section.end_diff
-            + "\n"
-        )
-    elif isinstance(section, TaskGroupStringSections):
-        if section.is_break:
-            output = "\n"
-        else:
-            output = (
-                section.indentation + section.user_specified_start_or_end + section.note
-            )
-    assert (
-        output.count("\n") == 1
-    ), f"Task string spec must have exactly one newline but is {output}"
-    return output
-
-
-def get_task_line_format(task_type: TaskType = TaskType.regular) -> str:
-    task_duration = rf"\(({TIMEDELTA_FORMAT})\)"
-    if task_type == TaskType.deletion_request:
-        task_duration = r"\((-)\)"
-    formats = get_field_formats(task_type)
-    return (
-        formats.start_diff  # start diff
-        + rf"(\t+)?(?:\033\[{OVERLAP_COLOR})?"  # overlap start
-        + formats.start
-        + formats.end
-        + formats.name
-        + task_duration
-        + rf"(?:\033\[0m)?"  # overlap end
-        + formats.end_diff
-    )
 
 
 LINE_TYPE = Union[None, Task, datetime, str]
@@ -148,26 +144,26 @@ def write_taskgroups(taskgroups: list[TaskGroup], filename: str) -> None:
 
 
 def convert_taskgroups_to_lines(
-    taskgroups: list[TaskGroup], lines: Optional[list[TransformStr]] = None
+    taskgroups: list[TaskGroup],
+    lines: Optional[list[TransformStr]] = None,
+    is_skip_transform: bool = True,
 ) -> list[str]:
     if lines is None:
         lines = []
     towrite = []
+    while lines:
+        line = lines.pop(0)
+        if line.startswith(SPLITTER):
+            TRANSFORM.delete(line)
+            break
+        if not line.endswith("\n"):
+            line = TRANSFORM.replace(line, line + "\n")
+        towrite.append(line)
     if taskgroups:
-        is_add_splitter = bool(lines)
-        while lines:
-            line = lines.pop(0)
-            if line.startswith(SPLITTER):
-                TRANSFORM.delete(line)
-                break
-            if not line.endswith("\n"):
-                line = TRANSFORM.replace(line, line + "\n")
-            towrite.append(line)
-        if is_add_splitter:
-            towrite.append(TRANSFORM.append(f"{SPLITTER}\n\n"))
+        towrite.append(TRANSFORM.append(f"{SPLITTER}\n\n"))
 
         # get tasks
-        towrite += convert_to_string(taskgroups, is_transform_soft_failure=False)
+        towrite += convert_to_string(taskgroups, is_skip_tranform=is_skip_transform)
 
         # clean up lines that weren't transformed
         for remaining_line in lines:
@@ -209,7 +205,7 @@ def process_task_line(
     line: TransformStr, task_type: TaskType = TaskType.regular
 ) -> tuple[Optional[Task], int]:
     matches = re.findall(
-        get_task_line_format(task_type),
+        get_task_config_str_format(task_type),
         line,
     )
     if not matches:
