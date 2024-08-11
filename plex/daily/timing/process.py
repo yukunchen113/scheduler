@@ -184,7 +184,7 @@ def get_timing_from_indexed_lines(
         if line.startswith(SPLITTER):
             # splitter
             break
-        elif re.match(r"(?:\t+)?-\s.*", line):
+        elif re.match(r"(?:\t+)?-\s.*", line) and timing_config:
             if subtiming_lines is None:
                 subtiming_lines = {}
             subtiming_lines[lidx] = TRANSFORM.replace(line, line[1:])

@@ -123,6 +123,7 @@ def process_daily_lines(
             TRANSFORM.append(task_line, Metadata(section=LineSection.task))
             for task_line in task_lines
         ]
+    TRANSFORM.validate(timing_lines + splitter_line + task_lines)
 
     date = datetime.strptime(datestr, "%Y-%m-%d").astimezone()
     date = date.replace(**DEFAULT_START_TIME)
@@ -130,11 +131,13 @@ def process_daily_lines(
     timing_lines, task_lines = apply_preprocessing(
         timing_lines, task_lines, datestr=datestr
     )
+    TRANSFORM.validate(timing_lines + splitter_line + task_lines)
 
     timing_lines = update_templates(timing_lines, datestr=datestr, is_main_file=True)
+    TRANSFORM.validate(timing_lines + splitter_line + task_lines)
 
     timings, timing_lines = get_timing_from_lines(timing_lines, date)
-
+    TRANSFORM.validate(timing_lines + splitter_line + task_lines)
     read_tasks = process_taskgroups_from_lines(task_lines, date)
     if not read_tasks:
         taskgroups = get_taskgroups_from_timing_configs(timings)
@@ -145,12 +148,7 @@ def process_daily_lines(
     new_lines = convert_taskgroups_to_lines(
         taskgroups, timing_lines + splitter_line + task_lines, is_skip_transform=False
     )
-
-    # validations:
-    constructed = TRANSFORM.construct_content()
-    assert (
-        constructed == new_lines
-    ), f"Constructed:\n{''.join(constructed)}\n\n Actual:\n{''.join(new_lines)}"
+    TRANSFORM.validate(new_lines)
     return new_lines
 
 

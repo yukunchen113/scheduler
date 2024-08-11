@@ -89,6 +89,23 @@ class TaskGroupStringSections:
     source_str: Optional[TransformStr] = None
     is_source_timing: bool = False
 
+    def validate(self):
+        assert (
+            sum(
+                bool(i)
+                for i in [
+                    self.note,
+                    self.indentation,
+                    self.user_specified_start_or_end,
+                    self.is_break,
+                ]
+            )
+            == 1
+        )
+        if self.user_specified_start_or_end or self.note:
+            assert self.source_str
+        return self
+
 
 StringSection = Union[TaskGroupStringSections, TaskStringSections]
 
@@ -174,7 +191,7 @@ def convert_config_str_to_string_section(line: str):
 
     # Taskgroup string section
     if line == "\n":
-        return TaskGroupStringSections(is_break=True)
+        return TaskGroupStringSections(is_break=True).validate()
 
     for indentation, content in re.findall(r"(\t*)(.*)", line):
         metadata = TRANSFORM.get_metadata(line)
@@ -185,9 +202,9 @@ def convert_config_str_to_string_section(line: str):
         ):
             return TaskGroupStringSections(
                 indentation=indentation, user_specified_start_or_end=content
-            )
+            ).validate()
         else:
-            return TaskGroupStringSections(note=indentation + content)
+            return TaskGroupStringSections(note=indentation + content).validate()
 
 
 def convert_task_to_string_sections(
@@ -223,7 +240,7 @@ def convert_task_to_string_sections(
                 TaskGroupStringSections(
                     note=f"{subtask_indentation}\t\t{note}",
                     source_str=note,
-                )
+                ).validate()
                 for note in task.notes
             ],
             is_overlap=overlap_time is not None and overlap_time < task.end,
@@ -253,7 +270,7 @@ def convert_taskgroups_to_string_sections(
                     ),
                     source_str=taskgroup.user_specified_start_source_str,
                     is_source_timing=taskgroup.is_user_specified_start_source_str_timing,
-                )
+                ).validate()
             )
 
         if taskgroup.tasks:
@@ -274,7 +291,7 @@ def convert_taskgroups_to_string_sections(
 
         if taskgroup.notes:
             output += [
-                TaskGroupStringSections(note=note, source_str=note)
+                TaskGroupStringSections(note=note, source_str=note).validate()
                 for note in taskgroup.notes
             ]
 
@@ -287,10 +304,10 @@ def convert_taskgroups_to_string_sections(
                     ),
                     source_str=taskgroup.user_specified_end_source_str,
                     is_source_timing=taskgroup.is_user_specified_end_source_str_timing,
-                )
+                ).validate()
             )
         if tgidx < len(taskgroups) - 1:  # reduce unnecessary break at end of taskgroups
-            output.append(TaskGroupStringSections(is_break=True))
+            output.append(TaskGroupStringSections(is_break=True).validate())
 
     return output
 

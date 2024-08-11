@@ -195,7 +195,7 @@ class Transform:
         if not hasattr(prev_content, "transform_id"):
             if not soft_failure:
                 raise ValueError(
-                    "Provided previous content does not have "
+                    "Provided (prev_content) source content does not have "
                     f"a transform_id and is '{repr(prev_content)}'. "
                     f"new content is '{repr(new_contents)}'"
                 )
@@ -328,6 +328,18 @@ class Transform:
         if focus_lines is not None:
             return focus_output
         return contents
+
+    def validate(self, lines):
+        constructed = self.construct_content()
+        constructed_lines = "".join(f"{i.transform_id}: {i}" for i in constructed)
+
+        actual_lines = [
+            (i.transform_id if hasattr(i, "transform_id") else None, i) for i in lines
+        ]
+        actual_lines = "".join(f"{i}: {j}" for i, j in actual_lines)
+        assert (
+            constructed == lines
+        ), f"Constructed:\n{constructed_lines}\n\n Actual:\n{actual_lines}"
 
 
 TRANSFORM = Transform()

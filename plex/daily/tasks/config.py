@@ -106,7 +106,6 @@ def convert_to_string(
                             add_after_content=prev_section_string,
                         )
                     )
-
             else:
                 # task or taskgroup string section to be replaced.
                 prev_section_string = (
@@ -115,7 +114,6 @@ def convert_to_string(
                     else TRANSFORM.replace(
                         section.source_str,
                         converted_str,
-                        soft_failure=is_skip_tranform,
                         metadata=dataclasses.replace(
                             TRANSFORM.get_metadata(section.source_str),
                             line_info=LineInfo(
@@ -160,7 +158,10 @@ def convert_taskgroups_to_lines(
             line = TRANSFORM.replace(line, line + "\n")
         towrite.append(line)
     if taskgroups:
-        towrite.append(TRANSFORM.append(f"{SPLITTER}\n\n"))
+        append_after = towrite[-1] if towrite else None
+        towrite.append(
+            TRANSFORM.append(f"{SPLITTER}\n\n", add_after_content=append_after)
+        )
 
         # get tasks
         towrite += convert_to_string(taskgroups, is_skip_tranform=is_skip_transform)
@@ -312,7 +313,6 @@ def _process_taskgroups(
                     subtaskgroups=_process_taskgroups(sublines_with_level),
                     notes=notes,
                 )
-
                 taskgroups.append(
                     TaskGroup(
                         tasks,

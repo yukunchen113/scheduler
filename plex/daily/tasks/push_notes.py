@@ -242,7 +242,7 @@ def convert_notion_contents_to_string_sections(
                     sections.append(
                         TaskGroupStringSections(
                             is_break=True, notion_uuid=ncontent.notion_uuid
-                        )
+                        ).validate()
                     )
                 elif ncontent.sections[0].color == "blue":
                     sections.append(
@@ -251,14 +251,14 @@ def convert_notion_contents_to_string_sections(
                             user_specified_start_or_end=ncontent.sections[0].content
                             + "\n",
                             notion_uuid=ncontent.notion_uuid,
-                        )
+                        ).validate()
                     )
                 else:
                     sections.append(
                         TaskGroupStringSections(
                             note=ncontent.sections[0].content + "\n",
                             notion_uuid=ncontent.notion_uuid,
-                        )
+                        ).validate()
                     )
     return sections
 
