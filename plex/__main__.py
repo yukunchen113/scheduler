@@ -79,9 +79,10 @@ def main(
         if not os.path.exists(filename):
             raise ValueError(f"Daily file {filename} doesn't exist. Unable to push.")
             # write out contents
-        overwrite_tasks_in_notion(datestr)
         print("Pushing to calendar")
         sync_tasks_to_calendar(datestr, filename, push_only=True)
+        print("Pushing Tasks To Notion")
+        overwrite_tasks_in_notion(datestr)
 
     if autoupdate:
         process_auto_update(datestr, filename, source)
