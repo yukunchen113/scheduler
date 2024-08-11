@@ -79,9 +79,18 @@ def test_no_tasks_generated_from_templates(
     [
         (
             # Input:
-            "{food:order}",
+            "{food:order}\n",
             # Output:
-            "order lunch [15] (10) #expense\n" "lunch [1h] (12:00)\n",
+            "order lunch |food-order/0| [15] (10am) #expense\n"
+            "lunch |food-order/1| [1h] (12pm)\n"
+            "\n"
+            "-------------\n"
+            "\n"
+            "10:00\n"
+            "\t10:00-10:15:\torder lunch |food-order/0:0| (15)\t\n"
+            "\n"
+            "12:00\n"
+            "\t12:00-13:00:\tlunch |food-order/1:0| (1h)\t\n",
         ),
     ],
 )

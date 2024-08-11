@@ -282,7 +282,7 @@ def _process_taskgroups(
                         [],
                         user_specified_start=start,
                         notes=taskgroup_notes,
-                        user_specified_start_source_str=start_line,
+                        user_specified_start_source_str=start_line or None,
                     )
                 )
                 taskgroup_notes = []
@@ -319,8 +319,8 @@ def _process_taskgroups(
                         user_specified_start=start,
                         user_specified_end=item,
                         notes=taskgroup_notes,
-                        user_specified_start_source_str=start_line,
-                        user_specified_end_source_str=orig_line,
+                        user_specified_start_source_str=start_line or None,
+                        user_specified_end_source_str=orig_line or None,
                     )
                 )
                 notes = []
@@ -347,7 +347,7 @@ def _process_taskgroups(
                         tasks,
                         user_specified_start=start,
                         notes=taskgroup_notes,
-                        user_specified_start_source_str=start_line,
+                        user_specified_start_source_str=start_line or None,
                     )
                 )
                 sublines_with_level = []
@@ -391,7 +391,7 @@ def _process_taskgroups(
                         TaskGroup(
                             tasks,
                             user_specified_start=start,
-                            user_specified_start_source_str=start_line,
+                            user_specified_start_source_str=start_line or None,
                         )
                     )
                     sublines_with_level = []
@@ -417,7 +417,7 @@ def _process_taskgroups(
                 tasks,
                 user_specified_start=start,
                 notes=taskgroup_notes,
-                user_specified_start_source_str=start_line,
+                user_specified_start_source_str=start_line or None,
             )
         )
 

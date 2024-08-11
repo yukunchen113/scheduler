@@ -95,13 +95,12 @@ class TaskGroupStringSections:
                 bool(i)
                 for i in [
                     self.note,
-                    self.indentation,
                     self.user_specified_start_or_end,
                     self.is_break,
                 ]
             )
             == 1
-        )
+        ), f"note: {repr(self.note)}, user specified start/end: {repr(self.user_specified_start_or_end)}, is break: {repr(self.is_break)}"
         if self.user_specified_start_or_end or self.note:
             assert self.source_str
         return self

@@ -80,10 +80,10 @@ class TaskGroup:
         ), "can not specify both start and end"
         assert not (self.user_specified_start is None) ^ (
             self.user_specified_start_source_str is None
-        ), "source str must be specified with start"
+        ), f"source str must be specified with start but is {self.user_specified_start} and {repr(self.user_specified_start_source_str)}"
         assert not (self.user_specified_end is None) ^ (
             self.user_specified_end_source_str is None
-        ), "source str must be specified with end"
+        ), f"source str must be specified with end but is {self.user_specified_end} and {repr(self.user_specified_end_source_str)}"
 
     @property
     def start(self):
