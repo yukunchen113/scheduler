@@ -107,13 +107,20 @@ def indent_line(string: str, n_indents: int = 1):
     return string
 
 
-def split_desc_and_uuid(description: str, used_uuids: set = None):
+def split_desc_and_uuid(
+    description: str,
+    used_uuids: Optional[set] = None,
+    default_uuid: Optional[str] = None,
+) -> tuple[str, str]:
     if used_uuids is None:
         used_uuids = set()
     id_from_desc = re.findall(rf"\|((?:{PATTERN_UUID})+)\|", description)
     if id_from_desc:
         # get from raw description
         timing_uuid = id_from_desc[0]
+    elif default_uuid:
+        # use default provided uuid
+        timing_uuid = default_uuid
     else:
         # set random timing_uuid
         timing_uuid = make_random_uuid(TIMING_UUID_LENGTH)

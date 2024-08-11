@@ -43,6 +43,7 @@ from plex.daily.timing.base import pack_timing_uuid
 from plex.daily.timing.process import (
     TIMING_SET_TIME_PATTERN,
     gather_existing_uuids_from_lines,
+    split_desc_and_uuid,
     unpack_timing_uuid,
 )
 from plex.transform.base import TRANSFORM, LineSection, Metadata, TransformStr
@@ -97,9 +98,13 @@ def read_sections_from_template(
             section = template_name
             if last_key is not None:
                 section += f"-{last_key}"
+            desc, timing_uuid = split_desc_and_uuid(
+                line[: timing.start()],
+                default_uuid=pack_timing_uuid(section, used_uuids[section]),
+            )
             line = (
-                line[: timing.start()]
-                + f"|{pack_timing_uuid(section, used_uuids[section])}| "
+                desc
+                + f"|{timing_uuid}| "
                 + line[timing.start() : timing.end()]
                 + line[timing.end() :]
             )

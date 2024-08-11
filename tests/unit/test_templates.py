@@ -105,3 +105,35 @@ def test_user_specified_time_from_template(
         actual == str_output
     ), f"Expected:\n{pformat(str_output)}\n\nActual:\n{pformat(actual)}"
     mock_get_template_base_dir.assert_called()
+
+
+@pytest.mark.parametrize(
+    "str_input,str_output",
+    [
+        (
+            # Input:
+            "{daily:night}\n",
+            # Output:
+            "cleanup/wash dishes |test-night| [10]\n"
+            "schedule |daily-night/1| [25]\n"
+            "get ready for bed |daily-night/2| [20]\n"
+            "\n"
+            "-------------\n"
+            "\n"
+            "\t7:30-7:40:\tcleanup/wash dishes |test-night:0| (10)\t\n"
+            "\t7:40-8:05:\tschedule |daily-night/1:0| (25)\t\n"
+            "\t8:05-8:25:\tget ready for bed |daily-night/2:0| (20)\t\n",
+        ),
+    ],
+)
+@patch("plex.daily.template.routines.get_template_base_dir", autospec=True)
+def test_user_specified_time_from_template(
+    mock_get_template_base_dir: MagicMock, str_input: str, str_output: str
+) -> None:
+    mock_get_template_base_dir.return_value = MOCK_TEMPLATE_BASE_DR
+    lines_input = [i + "\n" for i in str_input.split("\n")]
+    actual = "".join(process_daily_lines(CUR_DATESTR, lines_input))
+    assert (
+        actual == str_output
+    ), f"Expected:\n{pformat(str_output)}\n\nActual:\n{pformat(actual)}"
+    mock_get_template_base_dir.assert_called()
