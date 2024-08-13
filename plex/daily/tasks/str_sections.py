@@ -216,7 +216,7 @@ def convert_config_str_to_string_section(line: str):
             ).validate()
         else:
             return TaskGroupStringSections(
-                note=indentation + content, source_str=line
+                indentation=indentation, note=content, source_str=line
             ).validate()
 
 

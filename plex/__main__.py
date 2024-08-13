@@ -92,11 +92,12 @@ def main(
         while True:
             if time.time() >= update_process_time:
                 process_daily_file(datestr, filename, source)
-                update_process_time = time.time() + 1
+                update_process_time = time.time() + 3
 
             if time.time() >= update_calendar_time:
                 sync_tasks_to_calendar(datestr, filename, push_only=True)
                 update_calendar_time = time.time() + 60
+            time.sleep(1)
 
 
 if __name__ == "__main__":

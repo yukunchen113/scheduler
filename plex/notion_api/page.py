@@ -9,6 +9,7 @@ from typing import Optional, Union
 
 import requests
 from notion_client import Client
+from notion_client.errors import APIResponseError
 
 CREDENTIALS_BASEPATH = os.path.join(os.environ["HOME"], ".credentials/")
 PAGE_NAME = "Schedule"
@@ -188,12 +189,16 @@ def make_notion_json(content: Union[NotionContentGroup, NotionContent]):
                         "annotations": {"color": section.color},
                     }
                 )
-        return {
-            content.ntype.value: {
-                "rich_text": rich_text,
-                "children": [make_notion_json(child) for child in content.children],
-            },
-        }
+        request = {content.ntype.value: {"rich_text": rich_text}}
+        if content.ntype not in [
+            NotionType.heading_1,
+            NotionType.heading_2,
+            NotionType.paragraph,
+        ]:
+            request[content.ntype.value]["children"] = [
+                make_notion_json(child) for child in content.children
+            ]
+        return request
     else:
         return {
             content.ntype.value: {
@@ -217,9 +222,11 @@ def update_task(
 
     if notion_uuid is not None:  # updated existing block
         if isinstance(n_content, NotionContent):
-            return notion.blocks.update(notion_uuid, **make_notion_json(n_content))
-        else:
-            pass
+            try:
+                return notion.blocks.update(notion_uuid, **make_notion_json(n_content))
+            except APIResponseError as err:
+                print(f"Skipping update for {n_content}. Error: {str(err)}")
+                pass
     return None  # no item found
 
 

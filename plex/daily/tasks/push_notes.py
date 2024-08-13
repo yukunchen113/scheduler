@@ -112,13 +112,11 @@ def update_latest_representations(change_set, is_replace_ok=True):
                 [convert_config_str_to_string_section(fs) for fs in final_state]
             )
         )
-        if (
-            get_latest_str_representation(
-                notion_uuid,
-                len(convert_config_str_to_string_section(initial_state).indentation),
-            )
-            == initial_state
-        ):
+        latest_str_rep = get_latest_str_representation(
+            notion_uuid,
+            len(convert_config_str_to_string_section(initial_state).indentation),
+        )
+        if latest_str_rep == initial_state:
             print(f"Updating '{repr(initial_state)}' to '{final_state}'")
             if len(final_state_ncontent) == 1 and is_replace_ok:
                 update_task(final_state_ncontent[0], notion_uuid=notion_uuid)
@@ -126,6 +124,10 @@ def update_latest_representations(change_set, is_replace_ok=True):
                 if final_state_ncontent:
                     add_tasks_after(final_state_ncontent, notion_uuid)
                 delete_block(notion_uuid=notion_uuid)
+        else:
+            print(
+                f"Skipping update: '{repr(initial_state)}' to '{final_state}'. Latest String rep is '{repr(latest_str_rep)}'"
+            )
 
 
 def get_latest_str_representation(
@@ -267,6 +269,7 @@ def convert_notion_contents_to_string_sections(
                 else:
                     sections.append(
                         TaskGroupStringSections(
+                            indentation="\t" * indent_level,
                             note=ncontent.sections[0].content + "\n",
                             notion_uuid=ncontent.notion_uuid,
                         )
