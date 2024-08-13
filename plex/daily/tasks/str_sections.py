@@ -135,9 +135,17 @@ def unflatten_string_sections(
     new_sections = []
     while sections:
         subsections = []
-        while sections and len(sections[0].indentation) > indentation_level:
+        while sections and (
+            len(sections[0].indentation) > indentation_level
+            or (
+                isinstance(sections[0], TaskGroupStringSections)
+                and sections[0].is_break
+                and subsections
+            )
+        ):
             subsections.append(sections.pop(0))
-        subsections = unflatten_string_sections(subsections, indentation_level + 1)
+        if subsections:
+            subsections = unflatten_string_sections(subsections, indentation_level + 1)
         if new_sections and isinstance(new_sections[-1], TaskStringSections):
             new_sections[-1] = dataclasses.replace(
                 new_sections[-1], children=subsections

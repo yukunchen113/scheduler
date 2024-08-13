@@ -94,9 +94,9 @@ def main(
                 process_daily_file(datestr, filename, source)
                 update_process_time = time.time() + 1
 
-            # if time.time() >= update_calendar_time:
-            #     sync_tasks_to_calendar(datestr, filename, push_only=True)
-            #     update_calendar_time = time.time() + 60
+            if time.time() >= update_calendar_time:
+                sync_tasks_to_calendar(datestr, filename, push_only=True)
+                update_calendar_time = time.time() + 60
 
 
 if __name__ == "__main__":
