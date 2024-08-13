@@ -92,9 +92,16 @@ class Transform:
         self.data: dict[int, Union[State, Update]] = {}
         self.current_view = set()
         self.sequence_updates = {}
+        self.is_record = False
 
     def clear(self):
         self.__init__()
+
+    def start_recording(self):
+        self.is_record = True
+
+    def stop_recording(self):
+        self.is_record = False
 
     # Getters
     def get_most_recent_sequence_id(self, sequence_id: int) -> int:
@@ -125,6 +132,8 @@ class Transform:
         metadata: Optional[Metadata] = None,
         add_after_content: Optional[str] = None,
     ) -> TransformType:
+        if not self.is_record:
+            return content
         self.sequence_id += 1
         if metadata is None:
             metadata = Metadata()
@@ -148,6 +157,8 @@ class Transform:
         *,
         soft_failure: bool = False,
     ) -> Optional[TransformType]:
+        if not self.is_record:
+            return content
         if not hasattr(prev_content, "transform_id"):
             if not soft_failure:
                 raise ValueError(
@@ -192,6 +203,8 @@ class Transform:
         *,
         soft_failure: bool = False,
     ) -> list[TransformType]:
+        if not self.is_record:
+            return new_contents
         if not hasattr(prev_content, "transform_id"):
             if not soft_failure:
                 raise ValueError(
@@ -244,6 +257,8 @@ class Transform:
         new_contents: list[str],
         metadata: Optional[Metadata] = None,
     ) -> list[TransformType]:
+        if not self.is_record:
+            return new_contents
         if metadata is None:
             metadata = self.data[prev_content.transform_id].metadata
         transformed_content = self.add_after(

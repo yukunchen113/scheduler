@@ -74,7 +74,9 @@ def correct_deleted_and_added_timings_in_taskgroup(
     # unique key for distinuishing between different tasks are (description, minutes)
     # note there can be more than 1 of the same task
     if timing_tasks_counts is None:
-        timing_tasks_counts: dict[str, list[CarriedOverFields]] = {}
+        timing_tasks_counts: dict[
+            str, list[CarriedOverFields]
+        ] = {}  # must be ordered dictionary to keep timing add order.
     parent_uuids = {task_uuid for task_uuid in timing_tasks_counts.keys()}
     for task in timing_tasks:
         key = task.uuid
@@ -123,7 +125,9 @@ def correct_deleted_and_added_timings_in_taskgroup(
 
     # check if any are added
     extra_tasks = []
-    for task_uuid in set(timing_tasks_counts.keys()) - parent_uuids:
+    for task_uuid in list(timing_tasks_counts.keys()):
+        if task_uuid in parent_uuids:
+            continue
         minutes_list = timing_tasks_counts.pop(task_uuid)
         extra_tasks += [
             Task(

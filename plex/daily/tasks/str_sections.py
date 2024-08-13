@@ -102,7 +102,9 @@ class TaskGroupStringSections:
             == 1
         ), f"note: {repr(self.note)}, user specified start/end: {repr(self.user_specified_start_or_end)}, is break: {repr(self.is_break)}"
         if self.user_specified_start_or_end or self.note:
-            assert self.source_str
+            assert (
+                self.source_str
+            ), f"{repr(self.user_specified_start_or_end)} or {repr(self.note)}"
         return self
 
 
@@ -200,10 +202,14 @@ def convert_config_str_to_string_section(line: str):
             and not metadata.line_info.is_taskgroup_note
         ):
             return TaskGroupStringSections(
-                indentation=indentation, user_specified_start_or_end=content
+                indentation=indentation,
+                user_specified_start_or_end=content,
+                source_str=line,
             ).validate()
         else:
-            return TaskGroupStringSections(note=indentation + content).validate()
+            return TaskGroupStringSections(
+                note=indentation + content, source_str=line
+            ).validate()
 
 
 def convert_task_to_string_sections(

@@ -64,7 +64,6 @@ def read_sections_from_template(
     is_main_file: bool,
     options: str = "",
     template_name: str = "",
-    used_uuids: Optional[dict[str, int]] = None,
 ) -> ReplacementsType:
     sections: ReplacementsType = {DEFAULT_TEMPLATE_SECTION: []}
     command = f"python3.10 {filename} --datestr {datestr}"
@@ -88,9 +87,6 @@ def read_sections_from_template(
 
     last_key = None
 
-    if used_uuids is None:
-        used_uuids = defaultdict(lambda: 0)
-
     for line in lines:
         timing = re.search(TIMING_SET_TIME_PATTERN, line)
         if timing:
@@ -100,7 +96,7 @@ def read_sections_from_template(
                 section += f"-{last_key}"
             desc, timing_uuid = split_desc_and_uuid(
                 line[: timing.start()],
-                default_uuid=pack_timing_uuid(section, used_uuids[section]),
+                default_uuid=section,
             )
             line = (
                 desc
@@ -108,7 +104,6 @@ def read_sections_from_template(
                 + line[timing.start() : timing.end()]
                 + line[timing.end() :]
             )
-            used_uuids[section] += 1
         if line.endswith(":\n"):
             last_key = line.replace(":\n", "")
             sections[last_key] = []
@@ -127,7 +122,6 @@ def process_template_lines(
     lines: list[TransformStr],
     datestr: str,
     is_main_file: bool,
-    used_uuids: Optional[dict[str, int]] = None,
 ) -> ReplacementsType:
     templates: ReplacementsType = {}
     for line in lines:
@@ -143,7 +137,7 @@ def process_template_lines(
                 continue
             file = files[0]
             tsections = read_sections_from_template(
-                file, datestr, is_main_file, section, dfile, used_uuids
+                file, datestr, is_main_file, section, dfile
             )
             if section:
                 if section not in tsections:
@@ -168,8 +162,7 @@ def update_routine_templates_in_file(filename, datestr, is_main_file=False):
 def update_routine_templates(
     lines: list[TransformStr], datestr: str, is_main_file: bool = False
 ) -> list[TransformStr]:
-    used_uuids = defaultdict(lambda: 0)
-    for uuid in gather_existing_uuids_from_lines(lines):
-        used_uuids[unpack_timing_uuid(uuid)[0]] += 1
-    replacements = process_template_lines(lines, datestr, is_main_file, used_uuids)
-    return process_replacements(lines, replacements)
+    replacements = process_template_lines(lines, datestr, is_main_file)
+    return process_replacements(
+        lines, replacements, gather_existing_uuids_from_lines(lines)
+    )

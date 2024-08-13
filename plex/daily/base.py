@@ -62,21 +62,6 @@ def process_daily_file(
         sync_tasks_to_notion(datestr)
 
 
-def process_auto_update(
-    datestr: str, filename: str, source: TaskSource = TaskSource.FILE
-) -> None:
-    while True:
-        with open(filename) as file:
-            lines = file.readlines()
-        new_lines = process_daily_lines(datestr, lines, source)
-        with open(filename, "w") as f:
-            for line in new_lines:
-                f.write(line)
-        if source == TaskSource.NOTION:
-            sync_tasks_to_notion(datestr)
-        time.sleep(0.5)
-
-
 def process_daily_lines(
     datestr: str, lines: list[str], source: TaskSource = TaskSource.FILE
 ) -> list[str]:
@@ -87,6 +72,7 @@ def process_daily_lines(
         filename (str): filename for daily processing
     """
     TRANSFORM.clear()
+    TRANSFORM.start_recording()
     timing_lines, splitter_line, task_lines = split_lines_across_splitter(
         lines, is_separate_splitter=True
     )
@@ -102,6 +88,7 @@ def process_daily_lines(
             ),
         )
 
+    is_use_default_source = True
     if source == TaskSource.NOTION:
         notion_sections = pull_tasks_from_notion(datestr)
         if notion_sections is not None:
@@ -118,7 +105,9 @@ def process_daily_lines(
                         ),
                     )
                 )
-    else:
+            is_use_default_source = False
+
+    if source == TaskSource.FILE or is_use_default_source:
         task_lines = [
             TRANSFORM.append(task_line, Metadata(section=LineSection.task))
             for task_line in task_lines
@@ -149,6 +138,7 @@ def process_daily_lines(
         taskgroups, timing_lines + splitter_line + task_lines, is_skip_transform=False
     )
     TRANSFORM.validate(new_lines)
+    TRANSFORM.stop_recording()
     return new_lines
 
 

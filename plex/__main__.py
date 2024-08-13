@@ -1,11 +1,12 @@
 import datetime
 import os
+import time
 from pathlib import Path
 from typing import Optional
 
 from tap import tapify
 
-from plex.daily import process_auto_update, process_daily_file, sync_tasks_to_calendar
+from plex.daily import process_daily_file, sync_tasks_to_calendar
 from plex.daily.base import TaskSource
 from plex.daily.config_format import make_daily_filename
 from plex.daily.endpoint import get_json_str
@@ -79,13 +80,23 @@ def main(
         if not os.path.exists(filename):
             raise ValueError(f"Daily file {filename} doesn't exist. Unable to push.")
             # write out contents
-        print("Pushing to calendar")
-        sync_tasks_to_calendar(datestr, filename, push_only=True)
         print("Pushing Tasks To Notion")
         overwrite_tasks_in_notion(datestr)
+        print("Pushing to calendar")
+        sync_tasks_to_calendar(datestr, filename, push_only=True)
 
     if autoupdate:
-        process_auto_update(datestr, filename, source)
+        print(f"Starting Auto Update mode. Source: {source}")
+        update_process_time = time.time()
+        update_calendar_time = time.time()
+        while True:
+            if time.time() >= update_process_time:
+                process_daily_file(datestr, filename, source)
+                update_process_time = time.time() + 1
+
+            # if time.time() >= update_calendar_time:
+            #     sync_tasks_to_calendar(datestr, filename, push_only=True)
+            #     update_calendar_time = time.time() + 60
 
 
 if __name__ == "__main__":

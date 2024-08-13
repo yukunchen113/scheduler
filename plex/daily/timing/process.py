@@ -111,28 +111,35 @@ def split_desc_and_uuid(
     description: str,
     used_uuids: Optional[set] = None,
     default_uuid: Optional[str] = None,
+    uuid_packing_num: Optional[int] = None,
+    is_create_new_uuid: bool = True,
 ) -> tuple[str, str]:
     if used_uuids is None:
         used_uuids = set()
     id_from_desc = re.findall(rf"\|((?:{PATTERN_UUID})+)\|", description)
+    timing_uuid = None
     if id_from_desc:
         # get from raw description
         timing_uuid = id_from_desc[0]
+        if uuid_packing_num is not None:
+            timing_uuid = pack_timing_uuid(timing_uuid, uuid_packing_num)
     elif default_uuid:
         # use default provided uuid
         timing_uuid = default_uuid
+        if uuid_packing_num is not None:
+            timing_uuid = pack_timing_uuid(timing_uuid, uuid_packing_num)
     else:
         # set random timing_uuid
-        timing_uuid = make_random_uuid(TIMING_UUID_LENGTH)
-        for _ in range(100):
-            if timing_uuid not in used_uuids:
-                break
-            timing_uuid = make_random_uuid(TIMING_UUID_LENGTH)
-        else:
-            raise ValueError(
-                f"Unable to generate unique uuid after {TIMING_UNIQUE_RETRIES} tries"
-            )
-    used_uuids.add(timing_uuid)
+        if is_create_new_uuid:
+            timing_uuid_base = "untitled"
+            increment = 1
+            while True:
+                timing_uuid = pack_timing_uuid(timing_uuid_base, increment)
+                if timing_uuid not in used_uuids:
+                    break
+                increment += 1
+    if timing_uuid is not None:
+        used_uuids.add(timing_uuid)
 
     timing_description = re.findall(
         rf"([^\|]+)(?:\|(?:{PATTERN_UUID})+\|)?", description
@@ -170,7 +177,7 @@ def gather_existing_uuids_from_lines(lines):
     for line in lines:
         if is_valid_timing_str(line):
             split_desc_and_uuid(
-                line.split("[")[0].strip(), used_uuids=uuids
+                line.split("[")[0].strip(), used_uuids=uuids, is_create_new_uuid=False
             )  # updates uuids in place
     return uuids
 

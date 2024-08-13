@@ -342,12 +342,15 @@ def get_database_content_from_row(result):
 
 
 def pull_database_contents_from_notion():
-    return [
-        get_database_content_from_row(result)
-        for result in get_client()
-        .databases.query(get_page(DATABASE)["id"])
-        .get("results")
-    ]
+    try:
+        return [
+            get_database_content_from_row(result)
+            for result in get_client()
+            .databases.query(get_page(DATABASE)["id"])
+            .get("results")
+        ]
+    except ValueError:
+        return []
 
 
 def update_database_contents_in_notion(contents: list[DatabaseContent]):
@@ -374,6 +377,7 @@ def update_database_contents_in_notion(contents: list[DatabaseContent]):
                     },
                 )
                 content.entry_uuid = page["id"]
+                cur_contents[content.uuid] = content
 
 
 def get_block(block_id: int):

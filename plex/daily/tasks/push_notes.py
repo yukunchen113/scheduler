@@ -15,6 +15,7 @@ from plex.daily.tasks.config import (
     convert_string_section_to_config_str,
     convert_to_string,
 )
+from plex.daily.tasks.logic.conversions import get_timing_uuid_from_task_uuid
 from plex.daily.tasks.str_sections import (
     StringSection,
     TaskGroupStringSections,
@@ -26,6 +27,7 @@ from plex.daily.tasks.str_sections import (
     make_regex_parenthesis_non_capturing,
     unflatten_string_sections,
 )
+from plex.daily.timing.base import unpack_timing_uuid
 from plex.daily.timing.read import split_lines_across_splitter, split_splitter_and_tasks
 from plex.notion_api.page import (
     DatabaseContent,
@@ -97,12 +99,12 @@ def sync_tasks_to_notion(datestr, force_push=False) -> None:
             else:
                 other.append((notion_uuid, initial_state, final_state))
 
-        update_latest_representations(preprocessed)
+        update_latest_representations(preprocessed, is_replace_ok=False)
         update_latest_representations(deletions)
         update_latest_representations(other)
 
 
-def update_latest_representations(change_set):
+def update_latest_representations(change_set, is_replace_ok=True):
     for notion_uuid, initial_state, final_state in change_set:
         # get latest str represetation, ignore indentation level.
         final_state_ncontent = convert_sections_to_notion_contents(
@@ -118,7 +120,7 @@ def update_latest_representations(change_set):
             == initial_state
         ):
             print(f"Updating '{repr(initial_state)}' to '{final_state}'")
-            if len(final_state_ncontent) == 1:
+            if len(final_state_ncontent) == 1 and is_replace_ok:
                 update_task(final_state_ncontent[0], notion_uuid=notion_uuid)
             else:
                 if final_state_ncontent:
@@ -206,12 +208,21 @@ def convert_notion_contents_to_string_sections(
                 for fformat in fformats:
                     start_diff = fformat.start_diff.replace("\\t", r"\s")
                     end_diff = fformat.end_diff.replace("\\t", r"\s")
-                    for start_diff, start, end, name, stime, end_diff in re.findall(
+                    for (
+                        start_diff,
+                        start,
+                        end,
+                        name,
+                        uuid,
+                        stime,
+                        end_diff,
+                    ) in re.findall(
                         (
                             rf"({make_regex_parenthesis_non_capturing(start_diff)})?"
                             + rf"({make_regex_parenthesis_non_capturing(fformat.start)})"
                             + rf"({make_regex_parenthesis_non_capturing(fformat.end)})"
                             + rf"({make_regex_parenthesis_non_capturing(fformat.name)})"
+                            + rf"({make_regex_parenthesis_non_capturing(fformat.uuid)})"
                             + rf"({make_regex_parenthesis_non_capturing(fformat.time)})"
                             + rf"({make_regex_parenthesis_non_capturing(end_diff)})?"
                         ),
@@ -224,7 +235,7 @@ def convert_notion_contents_to_string_sections(
                                 start=start,
                                 end=end,
                                 name=name.rstrip() + " ",
-                                uuid=database_content.uuid,
+                                uuid=uuid,
                                 time=stime,
                                 end_diff=end_diff.replace(" ", "\t") or "\t",
                                 is_overlap=is_red,
@@ -233,7 +244,7 @@ def convert_notion_contents_to_string_sections(
                                     indent_level=indent_level + 1,
                                 ),
                                 notion_uuid=ncontent.notion_uuid,
-                            ).validate()
+                            )
                         )
 
             # taskgroups
@@ -242,7 +253,7 @@ def convert_notion_contents_to_string_sections(
                     sections.append(
                         TaskGroupStringSections(
                             is_break=True, notion_uuid=ncontent.notion_uuid
-                        ).validate()
+                        )
                     )
                 elif ncontent.sections[0].color == "blue":
                     sections.append(
@@ -251,14 +262,14 @@ def convert_notion_contents_to_string_sections(
                             user_specified_start_or_end=ncontent.sections[0].content
                             + "\n",
                             notion_uuid=ncontent.notion_uuid,
-                        ).validate()
+                        )
                     )
                 else:
                     sections.append(
                         TaskGroupStringSections(
                             note=ncontent.sections[0].content + "\n",
                             notion_uuid=ncontent.notion_uuid,
-                        ).validate()
+                        )
                     )
     return sections
 
@@ -294,29 +305,25 @@ def convert_task_section_to_notion_contents(
     section: TaskStringSections,
 ) -> list[NotionContent]:
 
-    # if section.notes:
-    #     notes = [
-    #         # TODO: Make these notes more comprehensive
-    #         NotionContent(
-    #             NotionType.paragraph,
-    #             sections=[
-    #                 NotionSection(note.replace("\n", ""), color="brown")
-    #             ],
-    #         )
-    #         for note in section.notes
-    #     ]
-    #     print(notes)
+    link_uuid = unpack_timing_uuid(
+        get_timing_uuid_from_task_uuid(section.uuid.strip().replace("|", ""))[0]
+    )[0]
+    database_content = DatabaseContent(name=link_uuid, uuid=link_uuid)
 
-    database_content = DatabaseContent(name=section.name, uuid=section.uuid)
-
+    start_diff = section.start_diff.replace("\t", " ")
+    if start_diff == " ":
+        start_diff = ""
     notion_sections = [
-        # NotionSection(section.start_diff.replace("\t", " ")
-        #               , color="green"), # remove initial start space for UX
+        NotionSection(start_diff, color="green"),  # remove initial start space for UX
         NotionSection(section.start, color="red" if section.is_overlap else "brown"),
         NotionSection(section.end, color="red" if section.is_overlap else "brown"),
         NotionSection(
             section.name,
             color="red" if section.is_overlap else "default",
+        ),
+        NotionSection(
+            section.uuid,
+            color="red" if section.is_overlap else "gray",
             database_content=database_content,
         ),
         NotionSection(section.time, color="red" if section.is_overlap else "gray"),
@@ -334,53 +341,3 @@ def convert_task_section_to_notion_contents(
             notion_uuid=section.notion_uuid,
         )
     ]
-
-
-# notes = re.findall(r"(\t*-\s?.+)", section.notes)
-# notes = []
-# for note in section.notes.split("\n"):
-#     if not note.strip():
-#         continue
-#     if note.startswith("\t"):
-#         notes.append(note[1:])
-#     else:
-#         notes.append(note)
-
-# if notes:
-#     notes = [ # TODO: Synced block for notes.
-#         NotionContent(
-#             NotionType.paragraph,
-#             sections=[
-#                 NotionSection(section.indentation + "\t" + note, color="brown")
-#             ],
-#         )
-#         for note in notes
-#     ]
-
-
-# def update_task_set(
-#     heading: NotionContent,
-#     next_task: NotionContentGroup,
-#     current_tasks: list[NotionContentGroup]
-# ):
-#     """Will update a set of tasks under the form of:
-
-#     # heading
-#     next task
-#     ## task_name
-#     [ ] todo 1
-#     [ ] todo 2
-
-#     will also modify the input in place with proper uuids if not specified
-#     """
-#     children = []
-#     if update_task(heading) is None: # create new
-#         children += [heading, next_task] + current_tasks
-#     else:
-#         if update_task(next_task) is None:
-#             children.append(next_task)
-#         children += [
-#             ctask for ctask in current_tasks
-#             if update_task(ctask) is None
-#         ]
-#     add_tasks_after(children)
