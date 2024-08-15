@@ -1,7 +1,7 @@
 import dataclasses
 import re
 from datetime import datetime
-from typing import Optional, Union
+from typing import Optional, TypedDict, Union
 
 from plex.daily.config_format import (
     SPLITTER,
@@ -13,101 +13,123 @@ from plex.daily.config_format import (
 )
 from plex.daily.tasks import Task, TaskGroup
 from plex.daily.tasks.base import TaskType
+from plex.daily.tasks.str_sections import (
+    StringSection,
+    TaskGroupStringSections,
+    TaskStringSections,
+    convert_string_section_to_config_str,
+    convert_task_to_string_sections,
+    convert_taskgroups_to_string_sections,
+    flatten_string_sections,
+    get_field_formats,
+    get_task_config_str_format,
+)
 from plex.daily.unique_id import PATTERN_UUID
+from plex.transform.base import TRANSFORM, LineInfo, LineSection, Metadata, TransformStr
 
 OVERLAP_COLOR = "91m"
 
 
-def get_task_line_format(task_type: TaskType = TaskType.regular):
-    task_duration = rf"\(({TIMEDELTA_FORMAT})\)"
-    if task_type == TaskType.deletion_request:
-        task_duration = "\((-)\)"
-    return (
-        rf"((?:\+|-){TIMEDELTA_FORMAT})?"  # start diff
-        rf"\t(\t+)?(?:\033\[{OVERLAP_COLOR})?"  # overlap start
-        rf"({TIME_FORMAT})-({TIME_FORMAT}):"  # time range
-        rf"\t(.+) "  # task description
-        + task_duration
-        + rf"(?:\033\[0m)?"  # task duration  # overlap end
-        rf"\t?((?:\+|-){TIMEDELTA_FORMAT})?"  # end diff
-    )
-
-
-LINE_TYPE = Union[None, Task, datetime, str]
-
-
-def convert_task_to_string(
-    task: Task, subtask_level: int = 0, overlap_time: Optional[datetime] = None
-) -> str:
-    assert task.start is not None
-    assert task.end is not None
-    start_time = task.start.strftime("%-H:%M")
-    end_time = task.end.strftime("%-H:%M")
-    start_diff = (
-        ""
-        if task.start_diff is None
-        else f'{"+" if task.start_diff>=0 else "-"}{process_mins_to_timedelta(abs(task.start_diff))}'
-    )
-    end_diff = (
-        ""
-        if task.end_diff is None
-        else f'{"+" if task.end_diff>=0 else "-"}{process_mins_to_timedelta(abs(task.end_diff))}'
-    )
-    subtask_indentation = "\t" * subtask_level
-    wc_begin = wc_end = ""
-    if overlap_time is not None and overlap_time < task.end:
-        wc_begin, wc_end = f"\033[{OVERLAP_COLOR}", "\033[0m"
-    output = (
-        f"{start_diff}\t{subtask_indentation}"
-        f"{wc_begin}"
-        f"{start_time}-{end_time}:"
-        f"\t{task.name} |{task.uuid}| ({process_mins_to_timedelta(task.time)})"
-        f"{wc_end}"
-        f"\t{end_diff}\n"
-    )
-    output += task.notes
-    output += convert_taskgroups_to_string(
-        task.subtaskgroups, subtask_level + 1, overlap_time
-    )
+def convert_to_string(
+    item: Union[Task, list[TaskGroup]],
+    subtask_level: int = 0,
+    overlap_time: Optional[datetime] = None,
+    *,
+    is_skip_tranform: bool = True,
+) -> list[str]:
+    if isinstance(item, Task):
+        sections = convert_task_to_string_sections(item, subtask_level, overlap_time)
+    else:
+        sections = convert_taskgroups_to_string_sections(
+            item, subtask_level, overlap_time
+        )
+    output = []
+    prev_section_string = None
+    for section in flatten_string_sections(sections):
+        converted_str = convert_string_section_to_config_str(section)
+        if converted_str is not None:
+            if isinstance(section, TaskGroupStringSections) and section.is_break:
+                # line breaks for Task Groups.
+                prev_section_string = (
+                    converted_str
+                    if is_skip_tranform
+                    else TRANSFORM.append(
+                        converted_str,
+                        metadata=Metadata(
+                            section=LineSection.task,
+                            line_info=LineInfo(is_spacing_element=True),
+                        ),
+                        add_after_content=prev_section_string,
+                    )
+                )
+            elif (
+                isinstance(section, (TaskGroupStringSections, TaskStringSections))
+                and section.is_source_timing
+            ):
+                # new task or taskgroup item that was generated from timing.
+                if prev_section_string is not None:
+                    # initially created task string
+                    prev_section_string = (
+                        converted_str
+                        if is_skip_tranform
+                        else TRANSFORM.add_after(
+                            section.source_str,
+                            [converted_str],
+                            prev_section_string,
+                            metadata=Metadata(
+                                section=LineSection.task,
+                                line_info=LineInfo(
+                                    is_taskgroup_note=isinstance(
+                                        section, TaskGroupStringSections
+                                    )
+                                    and bool(section.note)
+                                ),
+                            ),
+                            soft_failure=is_skip_tranform,
+                        )[0]
+                    )
+                else:
+                    prev_section_string = (
+                        converted_str
+                        if is_skip_tranform
+                        else TRANSFORM.append(
+                            converted_str,
+                            metadata=Metadata(
+                                section=LineSection.task,
+                                line_info=LineInfo(
+                                    is_taskgroup_note=isinstance(
+                                        section, TaskGroupStringSections
+                                    )
+                                    and bool(section.note)
+                                ),
+                            ),
+                            add_after_content=prev_section_string,
+                        )
+                    )
+            else:
+                # task or taskgroup string section to be replaced.
+                prev_section_string = (
+                    converted_str
+                    if is_skip_tranform
+                    else TRANSFORM.replace(
+                        section.source_str,
+                        converted_str,
+                        metadata=dataclasses.replace(
+                            TRANSFORM.get_metadata(section.source_str),
+                            line_info=LineInfo(
+                                is_taskgroup_note=isinstance(
+                                    section, TaskGroupStringSections
+                                )
+                                and bool(section.note)
+                            ),
+                        ),
+                    )
+                )
+            output.append(prev_section_string)
     return output
 
 
-def convert_taskgroups_to_string(
-    taskgroups: list[TaskGroup],
-    subtask_level: int = 0,
-    default_overlap_time: Optional[datetime] = None,
-) -> str:
-    output = []
-    for tgidx, taskgroup in enumerate(taskgroups):
-        string = ""
-        if taskgroup.user_specified_start is not None:
-            string += (
-                "\t" * subtask_level
-                + taskgroup.user_specified_start.strftime("%-H:%M")
-                + "\n"
-            )
-        for task in taskgroup.tasks:
-            overlap_time = default_overlap_time
-            if tgidx < len(taskgroups) - 1:
-                # see if task is overlapping between intervals
-                if overlap_time:
-                    overlap_time = min(taskgroups[tgidx + 1].start, overlap_time)
-                else:
-                    overlap_time = taskgroups[tgidx + 1].start
-            task_str = convert_task_to_string(task, subtask_level, overlap_time)
-            string += task_str
-
-        for note in taskgroup.notes:
-            string += note
-
-        if taskgroup.user_specified_end is not None:
-            string += (
-                "\t" * subtask_level
-                + taskgroup.user_specified_end.strftime("%-H:%M")
-                + "\n"
-            )
-        output.append(string)
-    return "\n".join(output)
+LINE_TYPE = Union[None, Task, datetime, str]
 
 
 def write_taskgroups(taskgroups: list[TaskGroup], filename: str) -> None:
@@ -120,20 +142,34 @@ def write_taskgroups(taskgroups: list[TaskGroup], filename: str) -> None:
 
 
 def convert_taskgroups_to_lines(
-    taskgroups: list[TaskGroup], lines: list[str]
+    taskgroups: list[TaskGroup],
+    lines: Optional[list[TransformStr]] = None,
+    is_skip_transform: bool = True,
 ) -> list[str]:
+    if lines is None:
+        lines = []
     towrite = []
+    while lines:
+        line = lines.pop(0)
+        if line.startswith(SPLITTER):
+            TRANSFORM.delete(line)
+            break
+        if not line.endswith("\n"):
+            line = TRANSFORM.replace(line, line + "\n")
+        towrite.append(line)
     if taskgroups:
-        for line in lines:
-            if line.startswith(SPLITTER):
-                break
-            if not line.endswith("\n"):
-                line += "\n"
-            towrite.append(line)
-        towrite.append(f"{SPLITTER}\n\n")
+        append_after = towrite[-1] if towrite else None
+        towrite.append(
+            TRANSFORM.append(f"{SPLITTER}\n\n", add_after_content=append_after)
+        )
 
         # get tasks
-        towrite.append(convert_taskgroups_to_string(taskgroups))
+        towrite += convert_to_string(taskgroups, is_skip_tranform=is_skip_transform)
+
+        # clean up lines that weren't transformed
+        for remaining_line in lines:
+            if not TRANSFORM.is_updated(remaining_line):
+                TRANSFORM.delete(remaining_line)
     return towrite
 
 
@@ -153,7 +189,7 @@ def get_lines_after_splitter(filename: str) -> list[str]:
 
 
 def split_desc_and_uuid(raw_description: str):
-    id_from_desc = re.findall(rf"\|((?:{PATTERN_UUID})+:[0-9]+)\|", raw_description)
+    id_from_desc = re.findall(get_field_formats().uuid, raw_description)
 
     task_uuid = None
     if id_from_desc:
@@ -167,10 +203,10 @@ def split_desc_and_uuid(raw_description: str):
 
 
 def process_task_line(
-    line: str, task_type: TaskType = TaskType.regular
+    line: TransformStr, task_type: TaskType = TaskType.regular
 ) -> tuple[Optional[Task], int]:
     matches = re.findall(
-        get_task_line_format(task_type),
+        get_task_config_str_format(task_type),
         line,
     )
     if not matches:
@@ -212,18 +248,20 @@ def process_task_line(
         start_diff=start_diff,
         end_diff=end_diff,
         uuid=task_uuid,
+        indentation_level=len(subtask_tabs),
+        source_str=line,
     ), len(subtask_tabs)
 
 
 def _process_taskgroups(
-    lines_with_level: list[tuple[LINE_TYPE, int, str]]
+    lines_with_level: list[tuple[LINE_TYPE, int, TransformStr]]
 ) -> list[TaskGroup]:
-    sublines_with_level: list[tuple[LINE_TYPE, int, str]] = []
+    sublines_with_level: list[tuple[LINE_TYPE, int, TransformStr]] = []
 
     taskgroups: list[TaskGroup] = []
     start, start_line = None, ""
     tasks: list[Task] = []
-    notes = ""
+    notes = []
     taskgroup_notes = []
 
     for item, level, orig_line in lines_with_level:
@@ -235,20 +273,34 @@ def _process_taskgroups(
             # even if they have start and end diffs on them.
             continue
         if isinstance(item, Task):
+            if taskgroup_notes:
+                if not tasks and start:
+                    start, taskgroup_notes = None, [start_line] + taskgroup_notes
+                    start_line = ""
+                taskgroups.append(
+                    TaskGroup(
+                        [],
+                        user_specified_start=start,
+                        notes=taskgroup_notes,
+                        user_specified_start_source_str=start_line or None,
+                    )
+                )
+                taskgroup_notes = []
+
             if sublines_with_level:
                 tasks[-1] = dataclasses.replace(
                     tasks[-1],
                     subtaskgroups=_process_taskgroups(sublines_with_level),
                     notes=notes,
                 )
-                notes = ""
+                notes = []
                 sublines_with_level = []
             if notes:
                 tasks[-1] = dataclasses.replace(
                     tasks[-1],
                     notes=notes,
                 )
-                notes = ""
+                notes = []
             tasks.append(item)
         elif isinstance(item, datetime):
             if not tasks:
@@ -261,16 +313,17 @@ def _process_taskgroups(
                     subtaskgroups=_process_taskgroups(sublines_with_level),
                     notes=notes,
                 )
-
                 taskgroups.append(
                     TaskGroup(
                         tasks,
                         user_specified_start=start,
                         user_specified_end=item,
                         notes=taskgroup_notes,
+                        user_specified_start_source_str=start_line or None,
+                        user_specified_end_source_str=orig_line or None,
                     )
                 )
-                notes = ""
+                notes = []
                 sublines_with_level = []
 
                 # set up new taskgroup
@@ -288,21 +341,65 @@ def _process_taskgroups(
             if tasks or taskgroup_notes or start:
                 if not tasks and start:
                     start, taskgroup_notes = None, [start_line] + taskgroup_notes
+                    start_line = ""
                 taskgroups.append(
-                    TaskGroup(tasks, user_specified_start=start, notes=taskgroup_notes)
+                    TaskGroup(
+                        tasks,
+                        user_specified_start=start,
+                        notes=taskgroup_notes,
+                        user_specified_start_source_str=start_line or None,
+                    )
                 )
                 sublines_with_level = []
-                notes = ""
+                notes = []
             assert not sublines_with_level
             tasks = []
             taskgroup_notes = []
             start, start_line = None, ""
 
         elif isinstance(item, str):
-            if tasks:
-                notes += item
-            else:
-                taskgroup_notes.append(item)
+
+            note = item
+            if tasks and not taskgroup_notes:
+                indented = re.match(r"^\t*-\s", note)
+                if indented:
+                    base_nind = tasks[-1].indentation_level + 1
+                    max_nind = base_nind
+                    if notes:
+                        max_nind = (
+                            base_nind
+                            + len(
+                                re.match(r"^\t*-\s", notes[-1])
+                                .group(0)
+                                .replace("- ", "")
+                            )
+                            + 1
+                        )
+                    cur_nind = len(indented.group(0).replace("- ", ""))
+                    if max_nind >= cur_nind >= base_nind:
+                        notes.append(TRANSFORM.replace(item, note[base_nind:]))
+                        note = None
+            if note:
+                # clear out tasks
+                if tasks:
+                    tasks[-1] = dataclasses.replace(
+                        tasks[-1],
+                        subtaskgroups=_process_taskgroups(sublines_with_level),
+                        notes=notes,
+                    )
+                    taskgroups.append(
+                        TaskGroup(
+                            tasks,
+                            user_specified_start=start,
+                            user_specified_start_source_str=start_line or None,
+                        )
+                    )
+                    sublines_with_level = []
+                    notes = []
+                    assert not sublines_with_level
+                    tasks = []
+                    start, start_line = None, ""
+                taskgroup_notes.append(TRANSFORM.replace(item, note))
 
     if tasks:
         tasks[-1] = dataclasses.replace(
@@ -312,17 +409,23 @@ def _process_taskgroups(
         )
 
     if tasks or taskgroup_notes:
-        if not tasks and start or start:
+        if not tasks and start:
             start, taskgroup_notes = None, [start_line] + taskgroup_notes
+            start_line = ""
         taskgroups.append(
-            TaskGroup(tasks, user_specified_start=start, notes=taskgroup_notes)
+            TaskGroup(
+                tasks,
+                user_specified_start=start,
+                notes=taskgroup_notes,
+                user_specified_start_source_str=start_line or None,
+            )
         )
 
     return taskgroups
 
 
 def process_taskgroups_from_lines(
-    lines: list[str], default_datetime: Optional[datetime] = None
+    lines: list[TransformStr], default_datetime: Optional[datetime] = None
 ) -> list[TaskGroup]:
     # create tasks
     lines_with_level: list[tuple[LINE_TYPE, int]] = []
@@ -345,6 +448,7 @@ def process_taskgroups_from_lines(
             level = len(num_tabs)
         elif not line.strip():
             lines_with_level.append((None, -1, line))
+            TRANSFORM.delete(line)
         else:
             lines_with_level.append((line, level, line))
 

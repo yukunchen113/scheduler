@@ -1,13 +1,17 @@
 import datetime
 import os
+import threading
+import time
 from pathlib import Path
 from typing import Optional
 
 from tap import tapify
 
-from plex.daily import process_auto_update, process_daily_file, sync_tasks_to_calendar
+from plex.daily import process_daily_file, sync_tasks_to_calendar
+from plex.daily.base import TaskSource
 from plex.daily.config_format import make_daily_filename
 from plex.daily.endpoint import get_json_str
+from plex.daily.tasks.push_notes import notion_requestor, overwrite_tasks_in_notion
 
 DAILY_BASEDIR = "daily"
 
@@ -21,6 +25,8 @@ def main(
     sync: bool = False,
     print_json: bool = False,
     autoupdate: bool = False,
+    source: str = "file",
+    is_skip_calendar: bool = False,
 ) -> None:
     """Plex: Planning and execution command line tool
 
@@ -33,7 +39,14 @@ def main(
         sync (bool, optional): start up sync server to sync calendar and file, while processing tasks. Defaults to False.
         print_json (bool, optional): prints json tasklists, doesn't include information from syncing with calendar
         auto_update (bool, optional): sets into autoupdate mode, will constantly look to update and for triggers
+        source (bool, optional): source of where to get the task schedule. Defaults to "file".
+            If this is the first time running with something other than file, remember to first push your changes.
+            Available options: (file, notion)
+        is_skip_calendar (bool, optional): skip calendar updates
     """
+    source = TaskSource(source)
+    threading.Thread(target=notion_requestor, daemon=True).start()
+
     if date:
         assert not tomorrow, "cannot specify tomorrow when date is specified."
         try:
@@ -54,9 +67,11 @@ def main(
         filename = datestr
     filename = make_daily_filename(filename, not no_process_daily)
     if not no_process_daily:
-        process_daily_file(datestr, filename)
+        process_daily_file(datestr, filename, source)
+
     if print_json:
         print(get_json_str(datestr, filename))
+
     if sync:
         assert not push
         if not os.path.exists(filename):
@@ -64,14 +79,56 @@ def main(
                 f"Daily file {filename} doesn't exist. Unable to sync to calendar."
             )
         sync_tasks_to_calendar(datestr, filename, push_only=False)
+
     elif push:
         if not os.path.exists(filename):
-            raise ValueError(
-                f"Daily file {filename} doesn't exist. Unable to push to calendar."
-            )
-        sync_tasks_to_calendar(datestr, filename, push_only=True)
+            raise ValueError(f"Daily file {filename} doesn't exist. Unable to push.")
+            # write out contents
+        print("Pushing Tasks To Notion")
+        overwrite_tasks_in_notion(datestr)
+        if not is_skip_calendar:
+            print("Pushing to calendar")
+            sync_tasks_to_calendar(datestr, filename, push_only=True)
+
     if autoupdate:
-        process_auto_update(datestr, filename)
+        print(f"Starting Auto Update mode. Source: {source}")
+        update_process_time = time.time()
+        update_calendar_time = time.time()
+
+        update_window = []
+        is_sleep_mode = False
+        retry_times = 10
+        while True:
+            if time.time() >= update_process_time:
+                try:
+                    is_changed = process_daily_file(datestr, filename, source)
+                    retry_times = 10
+                except Exception as err:
+                    print(f"ERROR (retries left - {retry_times}): {err}")
+                    if retry_times <= 0:
+                        print(f"ERROR Exiting...")
+                        raise err
+                    retry_times -= 1
+                    time.sleep(3)
+                    continue
+
+                update_window.append(is_changed)
+                while len(update_window) > 5:
+                    update_window.pop(0)
+                if any(update_window):
+                    update_process_time = time.time() + 1  # if updated lines
+                    if is_sleep_mode:
+                        print("Changing to fast update mode. Changes detected")
+                    is_sleep_mode = False
+                else:
+                    update_process_time = time.time() + 5  # sleep mode
+                    if not is_sleep_mode:
+                        print("Changing to sleep mode after no changes detected")
+                    is_sleep_mode = True
+
+            if not is_skip_calendar and time.time() >= update_calendar_time:
+                sync_tasks_to_calendar(datestr, filename, push_only=True)
+                update_calendar_time = time.time() + 60
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ from plex.daily.tasks import (
     DEFAULT_START_TIME,
     Task,
     TaskGroup,
-    get_all_tasks_in_taskgroups,
+    flatten_taskgroups_into_tasks,
 )
 from plex.daily.tasks.base import update_taskgroups_with_changes
 
@@ -66,7 +66,7 @@ def update_calendar_with_tasks(tasks: list[Task], datestr: str) -> dict[str, Tas
                     summary=task.name,
                     start=new_task.start,
                     end=new_task.end,
-                    notes=task.notes,
+                    notes="".join(task.notes),
                     date_id=date_id,
                 )
     task_mapping = new_task_mapping
@@ -90,7 +90,7 @@ def update_calendar_with_tasks(tasks: list[Task], datestr: str) -> dict[str, Tas
                 summary=task.name,
                 start=task.start,
                 end=task.end,
-                notes=task.notes,
+                notes="".join(task.notes),
                 date_id=date_id,
             )
         except Exception as exc:
@@ -151,7 +151,7 @@ def update_calendar_with_taskgroups(
     taskgroups: list[TaskGroup], datestr: str
 ) -> list[TaskGroup]:
     # modify existing calendar
-    tasks = get_all_tasks_in_taskgroups(taskgroups)
+    tasks = flatten_taskgroups_into_tasks(taskgroups)
     task_mapping = update_calendar_with_tasks(tasks, datestr)
     changes = get_updates_from_calendar(task_mapping)
     if changes:

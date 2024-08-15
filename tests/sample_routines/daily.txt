@@ -1,0 +1,8 @@
+morning:
+wake up [20]
+- wakeup pt 1 [10]
+get ready [30]
+night:
+cleanup/wash dishes |test-night| [10]
+schedule [25]
+get ready for bed [20]

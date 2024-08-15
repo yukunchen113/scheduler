@@ -126,9 +126,9 @@ def test_timing_existing_timing_changes(str_input: str, str_output: str) -> None
             "asdf dasf as d |fgxp2| [12]\n"
             "-------------\n\n"
             "\t7:30-7:43:\tasdf dasf as d |fgxp:0| (13)\t\n"
-            "\tasdf dasf |fgxp3| [14]*2\n"
+            "asdf dasf |fgxp3| [14]*2\n"
             "\t7:43-7:55:\tasdf dasf as d |fgxp2:0| (12)\t\n"
-            "\t\tasdf dasf |fgxp4| [7]\n",
+            "\tasdf dasf |fgxp4| [7]\n",
             # Output:
             "asdf dasf |fgxp| [13]\n"
             "asdf dasf as d |fgxp2| [12]\n"

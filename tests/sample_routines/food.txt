@@ -1,0 +1,3 @@
+order:
+order lunch [15] (10) #expense
+lunch [1h] (12:00)

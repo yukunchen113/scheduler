@@ -19,6 +19,7 @@ from plex.daily.timing.base import (
     unpack_timing_uuid,
 )
 from plex.daily.unique_id import PATTERN_UUID, make_random_uuid
+from plex.transform.base import TRANSFORM, LineSection, Metadata, TransformStr
 
 TIMING_PATTERN = r"\[{0}\](?:\*(?:\d+))?".format(TIMEDELTA_FORMAT)
 
@@ -106,25 +107,39 @@ def indent_line(string: str, n_indents: int = 1):
     return string
 
 
-def split_desc_and_uuid(description: str, used_uuids: set = None):
+def split_desc_and_uuid(
+    description: str,
+    used_uuids: Optional[set] = None,
+    default_uuid: Optional[str] = None,
+    uuid_packing_num: Optional[int] = None,
+    is_create_new_uuid: bool = True,
+) -> tuple[str, str]:
     if used_uuids is None:
         used_uuids = set()
     id_from_desc = re.findall(rf"\|((?:{PATTERN_UUID})+)\|", description)
+    timing_uuid = None
     if id_from_desc:
         # get from raw description
         timing_uuid = id_from_desc[0]
+        if uuid_packing_num is not None:
+            timing_uuid = pack_timing_uuid(timing_uuid, uuid_packing_num)
+    elif default_uuid:
+        # use default provided uuid
+        timing_uuid = default_uuid
+        if uuid_packing_num is not None:
+            timing_uuid = pack_timing_uuid(timing_uuid, uuid_packing_num)
     else:
         # set random timing_uuid
-        timing_uuid = make_random_uuid(TIMING_UUID_LENGTH)
-        for _ in range(100):
-            if timing_uuid not in used_uuids:
-                break
-            timing_uuid = make_random_uuid(TIMING_UUID_LENGTH)
-        else:
-            raise ValueError(
-                f"Unable to generate unique uuid after {TIMING_UNIQUE_RETRIES} tries"
-            )
-    used_uuids.add(timing_uuid)
+        if is_create_new_uuid:
+            timing_uuid_base = "untitled"
+            increment = 1
+            while True:
+                timing_uuid = pack_timing_uuid(timing_uuid_base, increment)
+                if timing_uuid not in used_uuids:
+                    break
+                increment += 1
+    if timing_uuid is not None:
+        used_uuids.add(timing_uuid)
 
     timing_description = re.findall(
         rf"([^\|]+)(?:\|(?:{PATTERN_UUID})+\|)?", description
@@ -133,25 +148,28 @@ def split_desc_and_uuid(description: str, used_uuids: set = None):
 
 
 def get_timing_from_lines(
-    lines: list[str],
+    lines: list[TransformStr],
     config_date: Optional[datetime] = None,
     existing_uuids: Optional[set[str]] = None,
-) -> tuple[list[TimingConfig], list[str]]:
+) -> tuple[list[TimingConfig], list[TransformStr]]:
     """gets the timing from lines
 
     Args:
-        lines (list[str]): lines that contains timings
+        lines (list[TransformStr]): lines that contains timings
         config_date (Optional[datetime], optional): date for the timings. Defaults to None.
 
     Returns:
-        tuple[list[TimingConfig], list[str]]: list of timings, list of new timing lines (after some post processing)
+        tuple[list[TimingConfig], list[TransformStr]]: list of timings, list of new timing lines (after some post processing)
     """
     if existing_uuids is None:
         existing_uuids = gather_existing_uuids_from_lines(lines)
     output, replaced = get_timing_from_indexed_lines(
         dict(enumerate(lines)), config_date, existing_uuids
     )
-    return output, [line for _, line in sorted(replaced.items())]
+    lines = [line for _, line in sorted(replaced.items())]
+    for i in lines:
+        assert hasattr(i, "transform_id")  # make sure transform id is accessable.
+    return output, lines
 
 
 def gather_existing_uuids_from_lines(lines):
@@ -159,17 +177,17 @@ def gather_existing_uuids_from_lines(lines):
     for line in lines:
         if is_valid_timing_str(line):
             split_desc_and_uuid(
-                line.split("[")[0].strip(), used_uuids=uuids
+                line.split("[")[0].strip(), used_uuids=uuids, is_create_new_uuid=False
             )  # updates uuids in place
     return uuids
 
 
 def get_timing_from_indexed_lines(
-    lines: dict[int, str],
+    lines: dict[int, TransformStr],
     config_date: Optional[datetime] = None,
     used_uuids: set[str] = set(),
     subtiming_level: int = 0,
-) -> tuple[list[TimingConfig], dict[int, str]]:
+) -> tuple[list[TimingConfig], dict[int, TransformStr]]:
     output: list[TimingConfig] = []
 
     timing_config = None
@@ -180,10 +198,10 @@ def get_timing_from_indexed_lines(
         if line.startswith(SPLITTER):
             # splitter
             break
-        elif re.match(r"(?:\t+)?-\s.*", line):
+        elif re.match(r"(?:\t+)?-\s.*", line) and timing_config:
             if subtiming_lines is None:
                 subtiming_lines = {}
-            subtiming_lines[lidx] = line[1:]
+            subtiming_lines[lidx] = TRANSFORM.replace(line, line[1:])
         else:
             # construct prev timing
             if timing_config is not None:
@@ -194,9 +212,8 @@ def get_timing_from_indexed_lines(
                         used_uuids=used_uuids,
                         subtiming_level=subtiming_level + 1,
                     )
-                    replaced_lines.update(
-                        {k: indent_line(v) for k, v in replaced_sublines.items()}
-                    )
+                    for k, v in replaced_sublines.items():
+                        replaced_lines[k] = TRANSFORM.replace(v, indent_line(v))
                 else:
                     subtimings = None
                 output.append(
@@ -218,8 +235,11 @@ def get_timing_from_indexed_lines(
                     uuid=tim_uuid,
                     end_line=process_information_after_timing(line),
                     subtiming_level=subtiming_level,
+                    source_str=line,
                 )
-                replaced_lines[lidx] = convert_timing_to_str(timing_config, n_indents=0)
+                replaced_lines[lidx] = TRANSFORM.replace(
+                    line, convert_timing_to_str(timing_config, n_indents=0)
+                )
             else:
                 timing_config = None
 
@@ -232,9 +252,10 @@ def get_timing_from_indexed_lines(
                 used_uuids=used_uuids,
                 subtiming_level=subtiming_level + 1,
             )
-            replaced_lines.update(
-                {k: indent_line(v) for k, v in replaced_sublines.items()}
-            )
+            for k, v in replaced_sublines.items():
+                replaced_lines[k] = TRANSFORM.replace(
+                    v, indent_line(v), soft_failure=True
+                )
         else:
             subtimings = None
         output.append(dataclasses.replace(timing_config, subtimings=subtimings or []))

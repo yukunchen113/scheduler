@@ -5,6 +5,14 @@ from datetime import date, datetime, timedelta
 from enum import Enum
 from typing import Any, Optional, TypedDict, Union
 
+from plex.transform.base import (
+    TRANSFORM,
+    LineSection,
+    Metadata,
+    TransformInt,
+    TransformStr,
+)
+
 
 class TimeType(TypedDict):
     hour: int
@@ -30,14 +38,13 @@ class Task:
     start_diff: Optional[int] = None
     end_diff: Optional[int] = None
     subtaskgroups: list["TaskGroup"] = dataclasses.field(default_factory=list)
-    notes: str = ""
+    notes: list[TransformStr] = dataclasses.field(default_factory=list)
 
     uuid: str = ""
-    # this uuid is regenerated whenever a new task is created.
-    # this will not be persisted
-    # this means that whenever a config is read, this uuid will change.
-    # this uuid is also not used in Task comparisons and is only used
-    # when explicitly specified.
+
+    indentation_level: int = 0
+    source_str: Optional[TransformStr] = None
+    is_source_timing: bool = False
 
     def __post_init__(self):
         if not self.uuid:
@@ -62,10 +69,21 @@ class TaskGroup:
 
     notes: list[str] = dataclasses.field(default_factory=list)
 
+    user_specified_start_source_str: Optional[str] = None
+    is_user_specified_start_source_str_timing: bool = False
+    user_specified_end_source_str: Optional[str] = None
+    is_user_specified_end_source_str_timing: bool = False
+
     def __post_init__(self):
         assert (
             self.user_specified_start is None or self.user_specified_end is None
         ), "can not specify both start and end"
+        assert not (self.user_specified_start is None) ^ (
+            self.user_specified_start_source_str is None
+        ), f"source str must be specified with start but is {self.user_specified_start} and {repr(self.user_specified_start_source_str)}"
+        assert not (self.user_specified_end is None) ^ (
+            self.user_specified_end_source_str is None
+        ), f"source str must be specified with end but is {self.user_specified_end} and {repr(self.user_specified_end_source_str)}"
 
     @property
     def start(self):
@@ -123,13 +141,13 @@ def pop_task(taskgroup: TaskGroup):
     return task
 
 
-def get_all_tasks_in_taskgroups(taskgroups: list[TaskGroup]) -> list[Task]:
+def flatten_taskgroups_into_tasks(taskgroups: list[TaskGroup]) -> list[Task]:
     """Gets all tasks and subtasks in taskgroups"""
     tasks = []
     for taskgroup in taskgroups:
         for task in taskgroup.tasks:
-            tasks += get_all_tasks_in_taskgroups(task.subtaskgroups)
             tasks.append(task)
+            tasks += flatten_taskgroups_into_tasks(task.subtaskgroups)
     return tasks
 
 

@@ -40,12 +40,22 @@ from plex.daily.config_format import SPLITTER
 from plex.daily.template.base import ReplacementsType
 from plex.daily.template.config import process_replacements
 from plex.daily.timing.base import pack_timing_uuid
-from plex.daily.timing.process import TIMING_SET_TIME_PATTERN
+from plex.daily.timing.process import (
+    TIMING_SET_TIME_PATTERN,
+    gather_existing_uuids_from_lines,
+    split_desc_and_uuid,
+    unpack_timing_uuid,
+)
+from plex.transform.base import TRANSFORM, LineSection, Metadata, TransformStr
 
 TEMPLATE_PATTERN = r"\{([^:]*)(?:\:([^:]*))?\}"
 TEMPLATE_BASE_DIR = "routines"
 
 DEFAULT_TEMPLATE_SECTION = "__default__:\n"
+
+
+def get_template_base_dir():
+    return TEMPLATE_BASE_DIR
 
 
 def read_sections_from_template(
@@ -54,7 +64,6 @@ def read_sections_from_template(
     is_main_file: bool,
     options: str = "",
     template_name: str = "",
-    used_uuids: Optional[dict[str, int]] = None,
 ) -> ReplacementsType:
     sections: ReplacementsType = {DEFAULT_TEMPLATE_SECTION: []}
     command = f"python3.10 {filename} --datestr {datestr}"
@@ -78,9 +87,6 @@ def read_sections_from_template(
 
     last_key = None
 
-    if used_uuids is None:
-        used_uuids = defaultdict(lambda: 0)
-
     for line in lines:
         timing = re.search(TIMING_SET_TIME_PATTERN, line)
         if timing:
@@ -88,13 +94,16 @@ def read_sections_from_template(
             section = template_name
             if last_key is not None:
                 section += f"-{last_key}"
+            desc, timing_uuid = split_desc_and_uuid(
+                line[: timing.start()],
+                default_uuid=section,
+            )
             line = (
-                line[: timing.start()]
-                + f"|{pack_timing_uuid(section, used_uuids[section])}| "
+                desc
+                + f"|{timing_uuid}| "
                 + line[timing.start() : timing.end()]
                 + line[timing.end() :]
             )
-            used_uuids[section] += 1
         if line.endswith(":\n"):
             last_key = line.replace(":\n", "")
             sections[last_key] = []
@@ -110,16 +119,15 @@ def is_template_line(line: str) -> bool:
 
 
 def process_template_lines(
-    lines: list[str],
+    lines: list[TransformStr],
     datestr: str,
     is_main_file: bool,
-    used_uuids: Optional[dict[str, int]] = None,
 ) -> ReplacementsType:
     templates: ReplacementsType = {}
     for line in lines:
         if is_template_line(line):
             dfile, section = re.findall(TEMPLATE_PATTERN, line)[0]
-            path = os.path.join(TEMPLATE_BASE_DIR, dfile + ".*")
+            path = os.path.join(get_template_base_dir(), dfile + ".*")
             files = glob.glob(path)
             if len(files) != 1:
                 print(
@@ -129,7 +137,7 @@ def process_template_lines(
                 continue
             file = files[0]
             tsections = read_sections_from_template(
-                file, datestr, is_main_file, section, dfile, used_uuids
+                file, datestr, is_main_file, section, dfile
             )
             if section:
                 if section not in tsections:
@@ -152,7 +160,9 @@ def update_routine_templates_in_file(filename, datestr, is_main_file=False):
 
 
 def update_routine_templates(
-    lines: list[str], datestr: str, is_main_file: bool = False
-) -> list[str]:
+    lines: list[TransformStr], datestr: str, is_main_file: bool = False
+) -> list[TransformStr]:
     replacements = process_template_lines(lines, datestr, is_main_file)
-    return process_replacements(lines, replacements)
+    return process_replacements(
+        lines, replacements, gather_existing_uuids_from_lines(lines)
+    )
