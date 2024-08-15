@@ -177,7 +177,7 @@ def process_timings_in_task_section(
             task_lines = TRANSFORM.nreplace(
                 line,
                 [
-                    (len(re.match(r"^\t*", line).group()) - 1) * "\t"
+                    len(re.match(r"^\t*", line).group()) * "\t"
                     + convert_to_string(task)[0]
                     for task in tasks
                 ],

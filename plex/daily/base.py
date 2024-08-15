@@ -1,3 +1,4 @@
+import random
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -55,11 +56,13 @@ def process_daily_file(
     with open(filename) as file:
         lines = file.readlines()
     new_lines = process_daily_lines(datestr, lines, source)
+    is_changed = "".join(lines) != "".join(new_lines)
+    if source == TaskSource.NOTION:
+        sync_tasks_to_notion(datestr)
     with open(filename, "w") as f:
         for line in new_lines:
             f.write(line)
-    if source == TaskSource.NOTION:
-        sync_tasks_to_notion(datestr)
+    return is_changed
 
 
 def process_daily_lines(

@@ -38,6 +38,7 @@ class TaskStringSections:
     notion_uuid: Optional[str] = None
     source_str: Optional[TransformStr] = None
     is_source_timing: bool = False
+    parent_notion_uuid: Optional[str] = None
 
     def validate(self):
         formats = [get_field_formats(ttype) for ttype in TaskType]
@@ -88,6 +89,7 @@ class TaskGroupStringSections:
     notion_uuid: Optional[str] = None
     source_str: Optional[TransformStr] = None
     is_source_timing: bool = False
+    parent_notion_uuid: Optional[str] = None
 
     def validate(self):
         assert (
@@ -251,7 +253,7 @@ def convert_task_to_string_sections(
             end_diff=f"\t{end_diff}",
             notes=[
                 TaskGroupStringSections(
-                    note=f"{subtask_indentation}\t\t{note}",
+                    note=f"{subtask_indentation}\t{note}",
                     source_str=note,
                 ).validate()
                 for note in task.notes

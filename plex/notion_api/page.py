@@ -253,9 +253,11 @@ def get_all_database_contents_from_notion_content(
 def add_tasks_after(
     n_contents: list[Union[NotionContentGroup, NotionContent]],
     after_uuid: Optional[str] = None,
+    parent_uuid: Optional[str] = None,
 ):
     notion = get_client()
-    page_uuid = get_page()["id"]
+    if parent_uuid is None:
+        parent_uuid = get_page()["id"]
 
     database_contents = []
     for content in n_contents:
@@ -266,12 +268,12 @@ def add_tasks_after(
     # append after specified block
     if after_uuid is None:
         output = notion.blocks.children.append(
-            page_uuid,
+            parent_uuid,
             children=[make_notion_json(n_content) for n_content in n_contents],
         )["results"]
     else:
         output = notion.blocks.children.append(
-            page_uuid,
+            parent_uuid,
             children=[make_notion_json(n_content) for n_content in n_contents],
             after=after_uuid,
         )["results"]

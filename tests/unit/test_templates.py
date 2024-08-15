@@ -175,9 +175,9 @@ def test_user_specified_time_from_template(
             "\t7:40-8:05:\tschedule |daily-night/0:0| (25)\t\n"
             "\t8:05-8:25:\tget ready for bed |daily-night/1:0| (20)\t\n"
             "\n"
-            "\t{daily:night}\n"
+            "{daily:night}\n"
             "\n"
-            "\t{daily:night}\n",
+            "{daily:night}\n",
             # Output:
             "cleanup/wash dishes |test-night/0| [10]\n"
             "schedule |daily-night/0| [25]\n"

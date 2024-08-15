@@ -1,7 +1,9 @@
 """
 Defines functions for pushing notes to the google tasks
 """
+import queue
 import re
+import time
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -41,7 +43,28 @@ from plex.notion_api.page import (
     get_contents,
     update_task,
 )
-from plex.transform.base import TRANSFORM, LineSection, Metadata
+from plex.transform.base import TRANSFORM, LineSection, Metadata, TransformStr
+
+# critical queues (as it's not a pure replacement)
+PREPROCESSED = queue.Queue()
+
+# non critical queues (pure replacement, idempotent)
+DELETIONS = queue.Queue()
+REGULAR = queue.Queue()
+
+
+def notion_requestor():
+    while True:
+        cur_queue = None
+        if not PREPROCESSED.empty():
+            cur_queue = PREPROCESSED
+        elif not DELETIONS.empty():
+            cur_queue = DELETIONS
+        elif not REGULAR.empty():
+            cur_queue = REGULAR
+        if cur_queue:
+            update_latest_representations(cur_queue.get())
+            cur_queue.task_done()
 
 
 def overwrite_tasks_in_notion(datestr: str):
@@ -55,7 +78,7 @@ def overwrite_tasks_in_notion(datestr: str):
     sync_tasks_to_notion(datestr, force_push=True)
 
 
-def sync_tasks_to_notion(datestr, force_push=False) -> None:
+def sync_tasks_to_notion(datestr, force_push=False) -> bool:
     """Syncs with notion tasks"""
     notion_sections = None if force_push else pull_tasks_from_notion(datestr)
 
@@ -63,6 +86,7 @@ def sync_tasks_to_notion(datestr, force_push=False) -> None:
         TRANSFORM.construct_content(), is_separate_splitter=True
     )
 
+    is_changed = False
     # find tasks to add, update, delete
     if notion_sections is None:
         # if first time generation, add everything
@@ -71,14 +95,14 @@ def sync_tasks_to_notion(datestr, force_push=False) -> None:
             convert_config_str_to_string_section(new_task) for new_task in new_tasks
         ]
         push_tasks_to_notion(unflatten_string_sections(new_sections), datestr)
-
+        is_changed = True
     else:
         current_tasks = {
-            section.notion_uuid: convert_string_section_to_config_str(section)
+            section.notion_uuid: section.parent_notion_uuid
             for section in flatten_string_sections(notion_sections)
         }
 
-        transformations = []
+        new_regular: list[ChangeSet] = []
         for initial_state in TRANSFORM.get_initial_states():
             if initial_state == "\n":
                 continue
@@ -87,47 +111,90 @@ def sync_tasks_to_notion(datestr, force_push=False) -> None:
                 continue
             notion_uuid = TRANSFORM.get_metadata(initial_state).notion_uuid
             if notion_uuid in current_tasks:
-                transformations.append((notion_uuid, initial_state, final_state))
+                if not final_state:
+                    DELETIONS.put(
+                        ChangeSet(
+                            notion_uuid,
+                            initial_state,
+                            final_state,
+                            parent_notion_uuid=current_tasks[notion_uuid],
+                        )
+                    )
+                elif (
+                    any(
+                        TRANSFORM.get_metadata(fs).is_preprocessed for fs in final_state
+                    )
+                    or len(final_state) > 1
+                ):
+                    PREPROCESSED.put(
+                        ChangeSet(
+                            notion_uuid,
+                            initial_state,
+                            final_state,
+                            is_replace_ok=False,
+                            parent_notion_uuid=current_tasks[notion_uuid],
+                        )
+                    )
+                else:
+                    new_regular.append(
+                        ChangeSet(
+                            notion_uuid,
+                            initial_state,
+                            final_state,
+                            parent_notion_uuid=current_tasks[notion_uuid],
+                        )
+                    )
 
-        # sort transformations based on precedence
-        deletions, preprocessed, other = [], [], []
-        for notion_uuid, initial_state, final_state in transformations:
-            if not final_state:
-                deletions.append((notion_uuid, initial_state, final_state))
-            elif any(TRANSFORM.get_metadata(fs).is_preprocessed for fs in final_state):
-                preprocessed.append((notion_uuid, initial_state, final_state))
-            else:
-                other.append((notion_uuid, initial_state, final_state))
-
-        update_latest_representations(preprocessed, is_replace_ok=False)
-        update_latest_representations(deletions)
-        update_latest_representations(other)
-
-
-def update_latest_representations(change_set, is_replace_ok=True):
-    for notion_uuid, initial_state, final_state in change_set:
-        # get latest str represetation, ignore indentation level.
-        final_state_ncontent = convert_sections_to_notion_contents(
-            unflatten_string_sections(
-                [convert_config_str_to_string_section(fs) for fs in final_state]
-            )
-        )
-        latest_str_rep = get_latest_str_representation(
-            notion_uuid,
-            len(convert_config_str_to_string_section(initial_state).indentation),
-        )
-        if latest_str_rep == initial_state:
-            print(f"Updating '{repr(initial_state)}' to '{final_state}'")
-            if len(final_state_ncontent) == 1 and is_replace_ok:
-                update_task(final_state_ncontent[0], notion_uuid=notion_uuid)
-            else:
-                if final_state_ncontent:
-                    add_tasks_after(final_state_ncontent, notion_uuid)
-                delete_block(notion_uuid=notion_uuid)
+        if DELETIONS.empty() and PREPROCESSED.empty() and REGULAR.empty():
+            # update regular infrequently - only when the previous batch is fully processed.
+            if new_regular:
+                # note: we don't clear the queue here to prevent excessive clearing.
+                for nreg in new_regular:
+                    REGULAR.put(nreg)
+                is_changed = True
         else:
-            print(
-                f"Skipping update: '{repr(initial_state)}' to '{final_state}'. Latest String rep is '{repr(latest_str_rep)}'"
-            )
+            is_changed = True
+    return is_changed
+
+
+@dataclass(frozen=True)
+class ChangeSet:
+    notion_uuid: str
+    initial_state: str
+    final_states: list[str]
+    is_replace_ok: bool = True
+    parent_notion_uuid: Optional[str] = None
+
+
+def update_latest_representations(change_set: ChangeSet):
+    # get latest str represetation, ignore indentation level.
+    final_state_ncontent = convert_sections_to_notion_contents(
+        unflatten_string_sections(
+            [convert_config_str_to_string_section(fs) for fs in change_set.final_states]
+        )
+    )
+    latest_str_rep = get_latest_str_representation(
+        change_set.notion_uuid,
+        len(convert_config_str_to_string_section(change_set.initial_state).indentation),
+    )
+    if latest_str_rep == change_set.initial_state:
+        print(
+            f"Updating '{repr(change_set.initial_state)}' to '{change_set.final_states}'"
+        )
+        if len(final_state_ncontent) == 1 and change_set.is_replace_ok:
+            update_task(final_state_ncontent[0], notion_uuid=change_set.notion_uuid)
+        else:
+            if final_state_ncontent:
+                add_tasks_after(
+                    final_state_ncontent,
+                    change_set.notion_uuid,
+                    parent_uuid=change_set.parent_notion_uuid,
+                )
+            delete_block(notion_uuid=change_set.notion_uuid)
+    else:
+        print(
+            f"Skipping update: '{repr(change_set.initial_state)}' to '{change_set.final_states}'. Latest String rep is '{repr(latest_str_rep)}'"
+        )
 
 
 def get_latest_str_representation(
@@ -151,6 +218,8 @@ def pull_tasks_from_notion(datestr: str) -> list[StringSection]:
     Returns:
         list[str]: config lines
     """
+    # don't pull tasks if we still have preprocessed items as these could cause duplications
+    PREPROCESSED.join()
     return convert_notion_contents_to_string_sections(get_contents(), datestr)
 
 
@@ -182,6 +251,7 @@ def convert_notion_contents_to_string_sections(
     ncontents: list[NotionContent],
     datestr: Optional[str] = None,
     indent_level: int = 0,
+    parent_notion_uuid: Optional[str] = None,
 ) -> Optional[list[StringSection]]:
     sections = None if datestr is not None else []
     fformats = [get_field_formats(i) for i in TaskType]
@@ -244,8 +314,10 @@ def convert_notion_contents_to_string_sections(
                                 children=convert_notion_contents_to_string_sections(
                                     ncontent.children,
                                     indent_level=indent_level + 1,
+                                    parent_notion_uuid=ncontent.notion_uuid,
                                 ),
                                 notion_uuid=ncontent.notion_uuid,
+                                parent_notion_uuid=parent_notion_uuid,
                             )
                         )
 
@@ -254,7 +326,9 @@ def convert_notion_contents_to_string_sections(
                 if not ncontent.sections or not ncontent.sections[0].content:
                     sections.append(
                         TaskGroupStringSections(
-                            is_break=True, notion_uuid=ncontent.notion_uuid
+                            is_break=True,
+                            notion_uuid=ncontent.notion_uuid,
+                            parent_notion_uuid=parent_notion_uuid,
                         )
                     )
                 elif ncontent.sections[0].color == "blue":
@@ -264,6 +338,7 @@ def convert_notion_contents_to_string_sections(
                             user_specified_start_or_end=ncontent.sections[0].content
                             + "\n",
                             notion_uuid=ncontent.notion_uuid,
+                            parent_notion_uuid=parent_notion_uuid,
                         )
                     )
                 else:
@@ -272,6 +347,7 @@ def convert_notion_contents_to_string_sections(
                             indentation="\t" * indent_level,
                             note=ncontent.sections[0].content + "\n",
                             notion_uuid=ncontent.notion_uuid,
+                            parent_notion_uuid=parent_notion_uuid,
                         )
                     )
     return sections
