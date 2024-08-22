@@ -94,21 +94,24 @@ def main(
         print(f"Starting Auto Update mode. Source: {source}")
         update_process_time = time.time()
         update_calendar_time = time.time()
+        calendar_retry_times = 3
 
         update_window = []
         is_sleep_mode = False
-        retry_times = 10
+        process_retry_times = 10
         while True:
             if time.time() >= update_process_time:
                 try:
                     is_changed = process_daily_file(datestr, filename, source)
-                    retry_times = 10
+                    process_retry_times = 10
                 except Exception as err:
-                    print(f"ERROR (retries left - {retry_times}): {err}")
-                    if retry_times <= 0:
-                        print(f"ERROR Exiting...")
+                    print(
+                        f"Process ERROR (retries left - {process_retry_times}): {err}"
+                    )
+                    if process_retry_times <= 0:
+                        print(f"Process ERROR Exiting...")
                         raise err
-                    retry_times -= 1
+                    process_retry_times -= 1
                     time.sleep(3)
                     continue
 
@@ -127,7 +130,17 @@ def main(
                     is_sleep_mode = True
 
             if not is_skip_calendar and time.time() >= update_calendar_time:
-                sync_tasks_to_calendar(datestr, filename, push_only=True)
+                try:
+                    sync_tasks_to_calendar(datestr, filename, push_only=True)
+                except Exception as err:
+                    print(
+                        f"Calendar ERROR: (retries left - {calendar_retry_times}): {err}"
+                    )
+                    if calendar_retry_times <= 0:
+                        print(f"Calendar ERROR Exiting...")
+                        raise err
+                    calendar_retry_times -= 1
+
                 update_calendar_time = time.time() + 60
 
 

@@ -339,7 +339,7 @@ def convert_notion_contents_to_string_sections(
                             parent_notion_uuid=parent_notion_uuid,
                         )
                     )
-                elif ncontent.sections[0].color == "blue":
+                elif ncontent.sections[0].color == "blue":  # best efforts
                     sections.append(
                         TaskGroupStringSections(
                             indentation="\t" * indent_level,
@@ -350,10 +350,11 @@ def convert_notion_contents_to_string_sections(
                         )
                     )
                 else:
+                    content = "".join(section.content for section in ncontent.sections)
                     sections.append(
                         TaskGroupStringSections(
                             indentation="\t" * indent_level,
-                            note=ncontent.sections[0].content + "\n",
+                            note=content + "\n",
                             notion_uuid=ncontent.notion_uuid,
                             parent_notion_uuid=parent_notion_uuid,
                         )

@@ -44,7 +44,7 @@ def process_notion_result_to_notion_content(
     existing_database_content: Optional[dict[str, "DatabaseContent"]] = None,
 ) -> Optional["NotionContent"]:
     for ntype in NotionType:
-        if ntype.value in result:
+        if ntype.value in result and ntype != NotionType.synced_block:
             sections = []
             for nsection in result[ntype.value]["rich_text"]:
                 # check for start and end dates:
