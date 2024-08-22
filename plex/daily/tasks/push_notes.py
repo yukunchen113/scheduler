@@ -75,10 +75,12 @@ def overwrite_tasks_in_notion(datestr: str):
             block = get_block(section.notion_uuid)
             if block:
                 delete_block(notion_uuid=section.notion_uuid)
-    sync_tasks_to_notion(datestr, force_push=True)
+    sync_tasks_to_notion(
+        datestr, force_push=True, is_create_header=notion_sections is None
+    )
 
 
-def sync_tasks_to_notion(datestr, force_push=False) -> bool:
+def sync_tasks_to_notion(datestr, force_push=False, is_create_header=True) -> bool:
     """Syncs with notion tasks"""
     notion_sections = None if force_push else pull_tasks_from_notion(datestr)
 
@@ -94,7 +96,11 @@ def sync_tasks_to_notion(datestr, force_push=False) -> bool:
         new_sections = [
             convert_config_str_to_string_section(new_task) for new_task in new_tasks
         ]
-        push_tasks_to_notion(unflatten_string_sections(new_sections), datestr)
+        push_tasks_to_notion(
+            unflatten_string_sections(new_sections),
+            datestr,
+            is_create_header=is_create_header,
+        )
         is_changed = True
     else:
         current_tasks = {
@@ -223,14 +229,16 @@ def pull_tasks_from_notion(datestr: str) -> list[StringSection]:
     return convert_notion_contents_to_string_sections(get_contents(), datestr)
 
 
-def push_tasks_to_notion(sections: list[StringSection], datestr: str) -> None:
+def push_tasks_to_notion(
+    sections: list[StringSection], datestr: str, is_create_header: bool
+) -> None:
     """Push notes to notion tasks"""
     # get current task, next task
     date = datetime.fromisoformat(datestr).date()
 
-    schedule = [
-        NotionContent(NotionType.heading_1, [NotionSection("", date)])
-    ] + convert_sections_to_notion_contents(sections)
+    schedule = []
+    schedule.append(NotionContent(NotionType.heading_1, [NotionSection("", date)]))
+    schedule += convert_sections_to_notion_contents(sections)
 
     add_tasks_after(schedule)
 

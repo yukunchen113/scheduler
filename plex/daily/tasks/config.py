@@ -361,7 +361,7 @@ def _process_taskgroups(
 
             note = item
             if tasks and not taskgroup_notes:
-                indented = re.match(r"^\t*-\s", note)
+                indented = re.match(r"^\t*", note)
                 if indented:
                     base_nind = tasks[-1].indentation_level + 1
                     max_nind = base_nind
@@ -369,9 +369,7 @@ def _process_taskgroups(
                         max_nind = (
                             base_nind
                             + len(
-                                re.match(r"^\t*-\s", notes[-1])
-                                .group(0)
-                                .replace("- ", "")
+                                re.match(r"^\t*", notes[-1]).group(0).replace("- ", "")
                             )
                             + 1
                         )
