@@ -19,7 +19,7 @@ class TimingConfig:
     subtimings: Optional[list["TimingConfig"]] = None
     set_time: Optional[SetTime] = None
     uuid: Optional[str] = None
-
+    notes: list[str] = field(default_factory=list)
     # these parameters are for string reconstruction
     end_line: str = ""
     subtiming_level: int = 0

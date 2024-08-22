@@ -38,6 +38,7 @@ def get_taskgroups_from_timing_configs(
                         timing_config.subtimings, uuid_count
                     )
                 ),
+                notes=timing_config.notes,
                 source_str=timing_config.source_str,
                 is_source_timing=True,
             )

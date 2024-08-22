@@ -253,8 +253,10 @@ def convert_task_to_string_sections(
             end_diff=f"\t{end_diff}",
             notes=[
                 TaskGroupStringSections(
-                    note=f"{subtask_indentation}\t{note}",
+                    note=f"{subtask_indentation}\t{note}"
+                    + ("" if note.endswith("\n") else "\n"),
                     source_str=note,
+                    is_source_timing=task.is_source_timing,
                 ).validate()
                 for note in task.notes
             ],
@@ -372,5 +374,5 @@ def convert_string_section_to_config_str(section: StringSection) -> Optional[str
             )
     assert (
         output.count("\n") == 1
-    ), f"Task string spec must have exactly one newline but is {output}"
+    ), f"Task string spec must have exactly one newline but is {repr(output)}"
     return output

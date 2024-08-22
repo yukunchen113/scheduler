@@ -28,7 +28,36 @@ CUR_DATESTR = datetime.now().date().isoformat()
             "\t10:12-12:12:\tasdf dasf as d |fgxp:4| (2h)\t\n"
             "\t12:12-13:27:\tasdf dasf as d |fgxp:5| (1h15)\t\n"
             "\t13:27-14:42:\tasdf dasf as d |fgxp:6| (1h15)\t\n",
-        )
+        ),
+        # timing notes
+        (
+            # Input:
+            "timing |fgxp| [12]\n"
+            "- timing note 1\n"
+            "- subtiming |fgxp:2| [12]\n"
+            "\t- subtiming note 1\n"
+            "\n"
+            "\t- subtiming note 2\n"
+            "\n"
+            "- timing note 2",
+            # Output:
+            "timing |fgxp| [12]\n"
+            "- timing note 1\n"
+            "- subtiming |untitled/1| [12]\n"
+            "\t- subtiming note 1\n"
+            "\n"
+            "\t- subtiming note 2\n"
+            "\n"
+            "- timing note 2\n"
+            "-------------\n"
+            "\n"
+            "\t7:30-7:42:\ttiming |fgxp:0| (12)\t\n"
+            "\ttiming note 1\n"
+            "\ttiming note 2\n"
+            "\t\t7:30-7:42:\tsubtiming |untitled/1:0| (12)\t\n"
+            "\t\tsubtiming note 1\n"
+            "\t\tsubtiming note 2\n",
+        ),
     ],
 )
 def test_timing_standard(str_input: str, str_output: str) -> None:
