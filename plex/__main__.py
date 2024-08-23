@@ -132,6 +132,7 @@ def main(
             if not is_skip_calendar and time.time() >= update_calendar_time:
                 try:
                     sync_tasks_to_calendar(datestr, filename, push_only=True)
+                    calendar_retry_times = 3
                 except Exception as err:
                     print(
                         f"Calendar ERROR: (retries left - {calendar_retry_times}): {err}"
