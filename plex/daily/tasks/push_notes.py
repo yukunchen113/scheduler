@@ -39,11 +39,13 @@ from plex.notion_api.page import (
     NotionContentGroup,
     NotionSection,
     NotionType,
+    PageNotFoundError,
     add_tasks_after,
     delete_block,
     get_block,
     get_contents,
     get_page,
+    get_subpages,
     update_task,
 )
 from plex.transform.base import TRANSFORM, LineSection, Metadata, TransformStr
@@ -77,45 +79,49 @@ def clear_queues(current_q: queue.Queue) -> None:
         except queue.Empty:
             continue
         current_q.task_done()
+    current_q.join()
 
 
 def overwrite_tasks_in_notion(datestr: str):
-    notion_sections = pull_tasks_from_notion(datestr)
-    if notion_sections is not None:
+    if subpage_id := get_subpages().get(datestr):
         print("Removing Existing Page...")
         for current_q in [PREPROCESSED, DELETIONS, REGULAR]:
             clear_queues(current_q)
-        delete_block(notion_uuid=get_page(datestr)["id"])
+        delete_block(notion_uuid=subpage_id)
+        get_page.cache_clear()
+        while datestr in get_subpages():
+            time.sleep(0.5)
 
+    wait_time = 0.5
     for _ in range(3):  # retry 3 times to account for deletion change propogation
+        time.sleep(wait_time)
+        wait_time = wait_time * 2
         try:
-            return sync_tasks_to_notion(
-                datestr, force_push=True, is_create_header=notion_sections is None
-            )
+            return sync_tasks_to_notion(datestr, force_push=True)
         except APIResponseError as error:
             print(error)
-        time.sleep(0.5)
 
 
-def sync_tasks_to_notion(datestr, force_push=False, is_create_header=True) -> bool:
+def sync_tasks_to_notion(datestr, force_push=False) -> bool:
     """Syncs with notion tasks"""
     notion_sections = None if force_push else pull_tasks_from_notion(datestr)
-
-    _, _, new_tasks = split_lines_across_splitter(
-        TRANSFORM.construct_content(), is_separate_splitter=True
-    )
 
     is_changed = False
     # find tasks to add, update, delete
     if notion_sections is None:
         # if first time generation, add everything
         print("Pushing Existing Notion Tasks...")
+        _, _, new_tasks = split_lines_across_splitter(
+            TRANSFORM.construct_content(), is_separate_splitter=True
+        )
         new_sections = [
             convert_config_str_to_string_section(new_task) for new_task in new_tasks
         ]
-        push_tasks_to_notion(
-            unflatten_string_sections(new_sections),
-            datestr,
+        add_tasks_after(
+            convert_sections_to_notion_contents(
+                unflatten_string_sections(new_sections)
+            ),
+            default_page_name=datestr,
         )
         is_changed = True
     else:
@@ -249,13 +255,6 @@ def pull_tasks_from_notion(datestr: str) -> Optional[list[StringSection]]:
     PREPROCESSED.join()
     return convert_notion_contents_to_string_sections(
         get_contents(default_page_name=datestr)
-    )
-
-
-def push_tasks_to_notion(sections: list[StringSection], datestr: str) -> None:
-    """Push notes to notion tasks"""
-    add_tasks_after(
-        convert_sections_to_notion_contents(sections), default_page_name=datestr
     )
 
 

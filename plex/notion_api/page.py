@@ -36,7 +36,7 @@ class PageNotFoundError(ValueError):
 def get_page(page_name):
     notion = get_client()
     for result in notion.search(query=page_name).get("results"):
-        if not result["archived"]:
+        if not result["archived"] and not result["in_trash"]:
             return result
     raise PageNotFoundError(
         f"Page '{page_name}' not found. Please give your integrations access to a page named '{page_name}'"
@@ -94,6 +94,16 @@ def process_notion_result_to_notion_content(
                 ntype=ntype, sections=sections, notion_uuid=result["id"]
             )
     return None
+
+
+def get_subpages():
+    subpages = {}
+    for result in (
+        get_client().blocks.children.list(get_page(PAGE_NAME)["id"]).get("results")
+    ):
+        if "child_page" in result:
+            subpages[result["child_page"]["title"]] = result["id"]
+    return subpages
 
 
 def get_contents(
@@ -421,7 +431,7 @@ def update_database_contents_in_notion(contents: list[DatabaseContent]):
 def get_block(block_id: int):
     notion = get_client()
     blocks = notion.blocks.retrieve(block_id)
-    if blocks.get("archived"):
+    if blocks.get("archived") or blocks.get("in_trash"):
         return None
     return process_notion_result_to_notion_content(blocks)
 
