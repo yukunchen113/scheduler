@@ -32,11 +32,16 @@ class PageNotFoundError(ValueError):
     """Page is not found"""
 
 
-@functools.cache
+PAGE_CACHE = {}
+
+
 def get_page(page_name):
+    if page_name in PAGE_CACHE:
+        return PAGE_CACHE[page_name]
     notion = get_client()
     for result in notion.search(query=page_name).get("results"):
         if not result["archived"] and not result["in_trash"]:
+            PAGE_CACHE[page_name] = result
             return result
     raise PageNotFoundError(
         f"Page '{page_name}' not found. Please give your integrations access to a page named '{page_name}'"
@@ -102,6 +107,7 @@ def get_subpages():
         get_client().blocks.children.list(get_page(PAGE_NAME)["id"]).get("results")
     ):
         if "child_page" in result:
+            PAGE_CACHE[result["child_page"]["title"]] = result
             subpages[result["child_page"]["title"]] = result["id"]
     return subpages
 
@@ -274,12 +280,19 @@ def get_all_database_contents_from_notion_content(
 def create_page(page_name: str):
     notion = get_client()
     parent_id = get_page(PAGE_NAME)["id"]
-    return notion.pages.create(
+    page = notion.pages.create(
         parent={"page_id": parent_id},
         properties={
             "title": [{"text": {"content": page_name}}],
         },
     )
+    PAGE_CACHE[page_name] = page
+    return page
+
+
+def clear_page_cache():
+    for key in list(PAGE_CACHE.keys()):
+        PAGE_CACHE.pop(key)
 
 
 def add_tasks_after(
@@ -334,6 +347,9 @@ def delete_block(
     if notion_uuid:
         notion = get_client()
         notion.blocks.delete(notion_uuid)
+        for page_name, page in PAGE_CACHE:
+            if page["id"] == notion_uuid:
+                PAGE_CACHE.pop(page_name)
 
 
 @dataclass

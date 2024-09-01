@@ -12,6 +12,7 @@ from plex.daily.base import TaskSource
 from plex.daily.config_format import make_daily_filename
 from plex.daily.endpoint import get_json_str
 from plex.daily.tasks.push_notes import notion_requestor, overwrite_tasks_in_notion
+from plex.notion_api.page import clear_page_cache
 
 DAILY_BASEDIR = "daily"
 
@@ -98,20 +99,35 @@ def main(
 
         update_window = []
         is_sleep_mode = False
-        process_retry_times = 10
+        process_retry_times = 5
+        overwrite_retry_times = 3
         while True:
             if time.time() >= update_process_time:
                 try:
                     is_changed = process_daily_file(datestr, filename, source)
-                    process_retry_times = 10
+                    process_retry_times = 5
                 except Exception as err:
                     print(
                         f"Process ERROR (retries left - {process_retry_times}): {err}"
                     )
                     if process_retry_times <= 0:
-                        print(f"Process ERROR Exiting...")
-                        raise err
-                    process_retry_times -= 1
+                        print(
+                            "Process ERROR Attempting Overwrite "
+                            f"(retries left - {overwrite_retry_times}): {err}"
+                        )
+                        try:
+                            overwrite_tasks_in_notion(datestr)
+                            overwrite_retry_times = 3
+                            process_retry_times = 5
+                        except Exception as err:
+                            if overwrite_retry_times <= 0:
+                                print(f"Process ERROR Error...")
+                                raise err
+                            else:
+                                overwrite_retry_times -= 1
+                    else:
+                        process_retry_times -= 1
+                    clear_page_cache()
                     time.sleep(3)
                     continue
 

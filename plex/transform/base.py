@@ -269,7 +269,9 @@ class Transform:
 
     # replaying changes:
     def construct_content(
-        self, focus_lines: Optional[TransformType] = None
+        self,
+        focus_lines: Optional[TransformType] = None,
+        include_if_contacted: Optional[TransformType] = None,
     ) -> list[TransformType]:
         tail = {}
         head = {"content": None, "next": tail}
@@ -277,6 +279,12 @@ class Transform:
 
         focus_graph_id_nodes = (
             [focus_line.transform_id for focus_line in focus_lines]
+            if focus_lines
+            else []
+        )
+
+        include_if_contacted = (
+            [focus_line.transform_id for focus_line in include_if_contacted]
             if focus_lines
             else []
         )
@@ -304,11 +312,14 @@ class Transform:
                 isinstance(state, Update)
                 and state.prev_sequence_id in focus_graph_id_nodes
             ):
-                if (
-                    state.add_after_sequence_id in focus_graph_id_nodes
-                    or state.update_type == UpdateType.update
-                ):
-                    focus_graph_id_nodes.append(state.sequence_id)
+                focus_graph_id_nodes.append(state.sequence_id)
+
+            if (
+                isinstance(state, Update)
+                and state.sequence_id in include_if_contacted
+                and state.add_after_sequence_id in focus_graph_id_nodes
+            ):
+                focus_graph_id_nodes.append(state.sequence_id)
 
             # construct output
             content = make_transform_type(state.content, state.sequence_id)

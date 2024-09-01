@@ -41,6 +41,7 @@ from plex.notion_api.page import (
     NotionType,
     PageNotFoundError,
     add_tasks_after,
+    clear_page_cache,
     delete_block,
     get_block,
     get_contents,
@@ -88,27 +89,19 @@ def overwrite_tasks_in_notion(datestr: str):
         for current_q in [PREPROCESSED, DELETIONS, REGULAR]:
             clear_queues(current_q)
         delete_block(notion_uuid=subpage_id)
-        get_page.cache_clear()
         while datestr in get_subpages():
             time.sleep(0.5)
-
-    wait_time = 0.5
-    for _ in range(3):  # retry 3 times to account for deletion change propogation
-        time.sleep(wait_time)
-        wait_time = wait_time * 2
-        try:
-            return sync_tasks_to_notion(datestr, force_push=True)
-        except APIResponseError as error:
-            print(error)
+    return sync_tasks_to_notion(datestr, force_push=True)
 
 
 def sync_tasks_to_notion(datestr, force_push=False) -> bool:
     """Syncs with notion tasks"""
     notion_sections = None if force_push else pull_tasks_from_notion(datestr)
-
     is_changed = False
     # find tasks to add, update, delete
-    if notion_sections is None:
+    if not notion_sections:
+        if notion_sections is None and datestr in get_subpages():
+            raise RuntimeError("Subpage exists but content not found.")
         # if first time generation, add everything
         print("Pushing Existing Notion Tasks...")
         _, _, new_tasks = split_lines_across_splitter(
@@ -125,19 +118,25 @@ def sync_tasks_to_notion(datestr, force_push=False) -> bool:
         )
         is_changed = True
     else:
+        assert get_page(datestr)["id"] == get_subpages()[datestr]
         current_tasks = {
             section.notion_uuid: section.parent_notion_uuid
             for section in flatten_string_sections(notion_sections)
         }
 
+        additional_lines = []
         new_regular: list[ChangeSet] = []
         for initial_state in TRANSFORM.get_initial_states():
+            notion_uuid = TRANSFORM.get_metadata(initial_state).notion_uuid
             if initial_state == "\n":
                 continue
-            final_state = TRANSFORM.construct_content(focus_lines=[initial_state])
+            final_state = TRANSFORM.construct_content(
+                focus_lines=[initial_state], include_if_contacted=additional_lines
+            )
+            if notion_uuid is None:
+                additional_lines += final_state
             if len(final_state) == 1 and final_state[0] == initial_state:
                 continue
-            notion_uuid = TRANSFORM.get_metadata(initial_state).notion_uuid
             if notion_uuid in current_tasks:
                 if not final_state:
                     DELETIONS.put(
@@ -253,9 +252,12 @@ def pull_tasks_from_notion(datestr: str) -> Optional[list[StringSection]]:
     """
     # don't pull tasks if we still have preprocessed items as these could cause duplications
     PREPROCESSED.join()
-    return convert_notion_contents_to_string_sections(
-        get_contents(default_page_name=datestr)
-    )
+    try:
+        return convert_notion_contents_to_string_sections(
+            get_contents(default_page_name=datestr)
+        )
+    except PageNotFoundError:
+        return None
 
 
 def convert_sections_to_notion_contents(
@@ -277,8 +279,6 @@ def convert_notion_contents_to_string_sections(
 ) -> Optional[list[StringSection]]:
     sections = []
     fformats = [get_field_formats(i) for i in TaskType]
-    if not ncontents:
-        return None
     for ncontent in ncontents:
         if isinstance(sections, list):
             # tasks
