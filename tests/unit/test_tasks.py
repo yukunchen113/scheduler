@@ -200,7 +200,6 @@ def test_task_subtasks(str_input: str, str_output: str) -> None:
         (
             # Input:
             "test |8oio| [0] (9)# test\n"
-            "- notes\n"
             "\n"
             "\n"
             "notes:\n"
@@ -220,7 +219,6 @@ def test_task_subtasks(str_input: str, str_output: str) -> None:
             "\t\t7:30-7:30:\ttest2 |8oi3:4| (0)\t\n"
             "\t\t7:30-7:30:\ttest3 |8oi3:5| (0)\t\n",
             # Output:
-            "- notes\n"
             "\n"
             "\n"
             "notes:\n"
@@ -235,7 +233,39 @@ def test_task_subtasks(str_input: str, str_output: str) -> None:
             "\t\t7:30-7:30:\ttest2 |8oi3:1| (0)\t\n"
             "\t\t7:30-7:30:\ttest2 |8oi3:3| (0)\t\n"
             "\t\t7:30-7:30:\ttest2 |8oi3:2| (0)\t\n",
-        )
+        ),
+        (
+            "test |8oio| [0] (9am)# test\n"
+            "- notes\n"
+            "- subtest |untitled/2| [0]\n"
+            "\n"
+            "\n"
+            "- notes2\n"
+            "test 2 |untitled/1| [0]\n"
+            "\n"
+            "test 3 |untitled/3| [0]\n"
+            "-------------\n"
+            "\n"
+            "9:00\n"
+            "\t9:00-9:00:\ttest |8oio:0| (-)\t\n"
+            "\tnotes\n"
+            "\tnotes2\n"
+            "\tnotes3\n"
+            "\t\t9:00-9:00:\tsubtest |untitled/2:0| (0)\t\n"
+            "\t\t9:00-9:00:\ttest 3 |untitled/3:0| (0)\t\n"
+            "\n"
+            "\t9:00-9:00:\ttest 2 |untitled/1:0| (0)\t\n",
+            # Output
+            "\n"
+            "\n"
+            "test 2 |untitled/1| [0]\n"
+            "\n"
+            "-------------\n"
+            "\n"
+            "9:00\n"
+            "\n"
+            "\t7:30-7:30:\ttest 2 |untitled/1:0| (0)\t\n",
+        ),
     ],
 )
 def test_task_induced_deletion(str_input: str, str_output: str) -> None:

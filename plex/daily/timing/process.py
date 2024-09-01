@@ -55,7 +55,6 @@ def convert_timing_to_str(timing: TimingConfig, *, n_indents: Optional[int] = No
 
     if n_indents is None:
         n_indents = timing.subtiming_level
-
     return indent_line(string, n_indents=n_indents)
 
 
@@ -190,6 +189,11 @@ def get_timing_from_indexed_lines(
 ) -> tuple[list[TimingConfig], dict[int, TransformStr]]:
     output: list[TimingConfig] = []
 
+    lines = {
+        lidx: TRANSFORM.replace(line, line.replace("    ", "\t"))
+        for lidx, line in lines.items()
+    }
+
     timing_config = None
     subtiming_lines: Optional[dict[int, str]] = None
     replaced_lines = copy.copy(lines)
@@ -198,7 +202,7 @@ def get_timing_from_indexed_lines(
         if line.startswith(SPLITTER):
             # splitter
             break
-        elif re.match(r"(?:\t+)?-\s.*", line) and timing_config or not line.strip():
+        elif re.match(r"(?:\t+)?-\s.*", line) or not line.strip():
             if subtiming_lines is None:
                 subtiming_lines = {}
             new_line = None
@@ -224,7 +228,9 @@ def get_timing_from_indexed_lines(
                         for _, note in sorted(subtiming_lines.items())
                         if not is_valid_timing_str(note)
                         and note.strip()
-                        and not re.match(r"(?:\t+)?-\s.*", note)
+                        and not re.match(
+                            r"(?:\t+)?-\s.*", note
+                        )  # notion can't process multi-level paragraphs
                     ]
                     for k, v in replaced_sublines.items():
                         replaced_lines[k] = TRANSFORM.replace(v, indent_line(v))

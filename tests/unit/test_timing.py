@@ -35,7 +35,7 @@ CUR_DATESTR = datetime.now().date().isoformat()
             "timing |fgxp| [12]\n"
             "- timing note 1\n"
             "- subtiming |fgxp:2| [12]\n"
-            "\t- subtiming note 1\n"
+            "    - subtiming note 1\n"
             "\n"
             "\t- subtiming note 2\n"
             "\n"
