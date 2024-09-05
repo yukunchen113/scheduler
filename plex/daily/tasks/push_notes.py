@@ -10,6 +10,8 @@ from datetime import date, datetime
 from functools import reduce
 from typing import Optional, TypedDict, Union
 
+from notion_client.errors import APIResponseError
+
 from plex.daily.cache import load_from_cache, save_to_cache
 from plex.daily.tasks.base import Task, TaskGroup, flatten_taskgroups_into_tasks
 from plex.daily.tasks.config import (
@@ -37,10 +39,14 @@ from plex.notion_api.page import (
     NotionContentGroup,
     NotionSection,
     NotionType,
+    PageNotFoundError,
     add_tasks_after,
+    clear_page_cache,
     delete_block,
     get_block,
     get_contents,
+    get_page,
+    get_subpages,
     update_task,
 )
 from plex.transform.base import TRANSFORM, LineSection, Metadata, TransformStr
@@ -67,39 +73,48 @@ def notion_requestor():
             cur_queue.task_done()
 
 
+def clear_queues(current_q: queue.Queue) -> None:
+    while not current_q.empty():
+        try:
+            current_q.get(block=False)
+        except queue.Empty:
+            continue
+        current_q.task_done()
+    current_q.join()
+
+
 def overwrite_tasks_in_notion(datestr: str):
-    notion_sections = pull_tasks_from_notion(datestr)
-    if notion_sections is not None:
-        print("Clearing Existing Notion Tasks...")
-        for section in notion_sections:
-            block = get_block(section.notion_uuid)
-            if block:
-                delete_block(notion_uuid=section.notion_uuid)
-    sync_tasks_to_notion(
-        datestr, force_push=True, is_create_header=notion_sections is None
-    )
+    if subpage_id := get_subpages().get(datestr):
+        print("Removing Existing Page...")
+        for current_q in [PREPROCESSED, DELETIONS, REGULAR]:
+            clear_queues(current_q)
+        delete_block(notion_uuid=subpage_id)
+        while datestr in get_subpages():
+            time.sleep(0.5)
+    return sync_tasks_to_notion(datestr, force_push=True)
 
 
-def sync_tasks_to_notion(datestr, force_push=False, is_create_header=True) -> bool:
+def sync_tasks_to_notion(datestr, force_push=False) -> bool:
     """Syncs with notion tasks"""
     notion_sections = None if force_push else pull_tasks_from_notion(datestr)
-
-    _, _, new_tasks = split_lines_across_splitter(
-        TRANSFORM.construct_content(), is_separate_splitter=True
-    )
-
     is_changed = False
     # find tasks to add, update, delete
-    if notion_sections is None:
+    if not notion_sections:
+        if notion_sections is None and datestr in get_subpages():
+            raise RuntimeError("Subpage exists but content not found.")
         # if first time generation, add everything
-        print("Pushing Existing Notion Tasks...")
+        print(f"Pushing Notion Tasks to {datestr}...")
+        _, _, new_tasks = split_lines_across_splitter(
+            TRANSFORM.construct_content(), is_separate_splitter=True
+        )
         new_sections = [
             convert_config_str_to_string_section(new_task) for new_task in new_tasks
         ]
-        push_tasks_to_notion(
-            unflatten_string_sections(new_sections),
-            datestr,
-            is_create_header=is_create_header,
+        add_tasks_after(
+            convert_sections_to_notion_contents(
+                unflatten_string_sections(new_sections)
+            ),
+            default_page_name=datestr,
         )
         is_changed = True
     else:
@@ -108,18 +123,27 @@ def sync_tasks_to_notion(datestr, force_push=False, is_create_header=True) -> bo
             for section in flatten_string_sections(notion_sections)
         }
 
+        additional_lines = []
         new_regular: list[ChangeSet] = []
         for initial_state in TRANSFORM.get_initial_states():
+            notion_uuid = TRANSFORM.get_metadata(initial_state).notion_uuid
             if initial_state == "\n":
                 continue
-            final_state = TRANSFORM.construct_content(focus_lines=[initial_state])
+            final_state = TRANSFORM.construct_content(
+                focus_lines=[initial_state], include_if_contacted=additional_lines
+            )
+            if notion_uuid is None:
+                additional_lines += TRANSFORM.construct_content(
+                    focus_lines=[initial_state],
+                    show_all_lines_generated_from_focus=True,
+                )
             if len(final_state) == 1 and final_state[0] == initial_state:
                 continue
-            notion_uuid = TRANSFORM.get_metadata(initial_state).notion_uuid
             if notion_uuid in current_tasks:
                 if not final_state:
                     DELETIONS.put(
                         ChangeSet(
+                            datestr,
                             notion_uuid,
                             initial_state,
                             final_state,
@@ -134,6 +158,7 @@ def sync_tasks_to_notion(datestr, force_push=False, is_create_header=True) -> bo
                 ):
                     PREPROCESSED.put(
                         ChangeSet(
+                            datestr,
                             notion_uuid,
                             initial_state,
                             final_state,
@@ -144,6 +169,7 @@ def sync_tasks_to_notion(datestr, force_push=False, is_create_header=True) -> bo
                 else:
                     new_regular.append(
                         ChangeSet(
+                            datestr,
                             notion_uuid,
                             initial_state,
                             final_state,
@@ -165,6 +191,7 @@ def sync_tasks_to_notion(datestr, force_push=False, is_create_header=True) -> bo
 
 @dataclass(frozen=True)
 class ChangeSet:
+    datestr: str
     notion_uuid: str
     initial_state: str
     final_states: list[str]
@@ -195,6 +222,7 @@ def update_latest_representations(change_set: ChangeSet):
                     final_state_ncontent,
                     change_set.notion_uuid,
                     parent_uuid=change_set.parent_notion_uuid,
+                    default_page_name=change_set.datestr,
                 )
             delete_block(notion_uuid=change_set.notion_uuid)
     else:
@@ -215,7 +243,7 @@ def get_latest_str_representation(
         )
 
 
-def pull_tasks_from_notion(datestr: str) -> list[StringSection]:
+def pull_tasks_from_notion(datestr: str) -> Optional[list[StringSection]]:
     """pulls tasks from notion and formats them into config lines.
 
     Args:
@@ -226,21 +254,12 @@ def pull_tasks_from_notion(datestr: str) -> list[StringSection]:
     """
     # don't pull tasks if we still have preprocessed items as these could cause duplications
     PREPROCESSED.join()
-    return convert_notion_contents_to_string_sections(get_contents(), datestr)
-
-
-def push_tasks_to_notion(
-    sections: list[StringSection], datestr: str, is_create_header: bool
-) -> None:
-    """Push notes to notion tasks"""
-    # get current task, next task
-    date = datetime.fromisoformat(datestr).date()
-
-    schedule = []
-    schedule.append(NotionContent(NotionType.heading_1, [NotionSection("", date)]))
-    schedule += convert_sections_to_notion_contents(sections)
-
-    add_tasks_after(schedule)
+    try:
+        return convert_notion_contents_to_string_sections(
+            get_contents(default_page_name=datestr)
+        )
+    except PageNotFoundError:
+        return None
 
 
 def convert_sections_to_notion_contents(
@@ -257,22 +276,12 @@ def convert_sections_to_notion_contents(
 
 def convert_notion_contents_to_string_sections(
     ncontents: list[NotionContent],
-    datestr: Optional[str] = None,
     indent_level: int = 0,
     parent_notion_uuid: Optional[str] = None,
 ) -> Optional[list[StringSection]]:
-    sections = None if datestr is not None else []
+    sections = []
     fformats = [get_field_formats(i) for i in TaskType]
     for ncontent in ncontents:
-        # heading
-        if datestr is not None and ncontent.ntype == NotionType.heading_1:
-            if (
-                datestr != ncontent.sections[0].start_datetime.isoformat()
-                and sections is not None
-            ):
-                continue
-            else:
-                sections = []
         if isinstance(sections, list):
             # tasks
             if ncontent.ntype == NotionType.to_do:

@@ -269,7 +269,10 @@ class Transform:
 
     # replaying changes:
     def construct_content(
-        self, focus_lines: Optional[TransformType] = None
+        self,
+        focus_lines: Optional[TransformType] = None,
+        include_if_contacted: Optional[TransformType] = None,
+        show_all_lines_generated_from_focus: bool = False,
     ) -> list[TransformType]:
         tail = {}
         head = {"content": None, "next": tail}
@@ -281,13 +284,17 @@ class Transform:
             else []
         )
 
+        include_if_contacted = (
+            [extra_line.transform_id for extra_line in include_if_contacted]
+            if include_if_contacted
+            else []
+        )
+
         for seq_id in range(len(self.data)):
             state = self.data[seq_id]
 
             # validations
             if isinstance(state, Update):
-                from pprint import pprint
-
                 if state.prev_sequence_id not in node_index:
                     output = [
                         v
@@ -299,7 +306,7 @@ class Transform:
                     pprint(output)
                     exit()
 
-            # if focus graph is specified,
+            # if focus graph is specified, and we're adding after or updating
             if (
                 isinstance(state, Update)
                 and state.prev_sequence_id in focus_graph_id_nodes
@@ -307,8 +314,16 @@ class Transform:
                 if (
                     state.add_after_sequence_id in focus_graph_id_nodes
                     or state.update_type == UpdateType.update
+                    or show_all_lines_generated_from_focus
                 ):
                     focus_graph_id_nodes.append(state.sequence_id)
+
+            # also include if add after is specified in focus group.
+            if (
+                state.sequence_id in include_if_contacted
+                and state.add_after_sequence_id in focus_graph_id_nodes
+            ):
+                focus_graph_id_nodes.append(state.sequence_id)
 
             # construct output
             content = make_transform_type(state.content, state.sequence_id)

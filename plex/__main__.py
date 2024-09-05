@@ -12,6 +12,7 @@ from plex.daily.base import TaskSource
 from plex.daily.config_format import make_daily_filename
 from plex.daily.endpoint import get_json_str
 from plex.daily.tasks.push_notes import notion_requestor, overwrite_tasks_in_notion
+from plex.notion_api.page import clear_page_cache
 
 DAILY_BASEDIR = "daily"
 
@@ -66,7 +67,7 @@ def main(
     if filename is None:
         filename = datestr
     filename = make_daily_filename(filename, not no_process_daily)
-    if not no_process_daily:
+    if not no_process_daily and not autoupdate:
         process_daily_file(datestr, filename, source)
 
     if print_json:
@@ -98,33 +99,47 @@ def main(
 
         update_window = []
         is_sleep_mode = False
-        process_retry_times = 10
+        process_retry_times = 5
+        overwrite_retry_times = 1
         while True:
             if time.time() >= update_process_time:
                 try:
                     is_changed = process_daily_file(datestr, filename, source)
-                    process_retry_times = 10
+                    process_retry_times = 5
                 except Exception as err:
                     print(
                         f"Process ERROR (retries left - {process_retry_times}): {err}"
                     )
                     if process_retry_times <= 0:
-                        print(f"Process ERROR Exiting...")
-                        raise err
-                    process_retry_times -= 1
-                    time.sleep(3)
+                        print(
+                            "Process ERROR Attempting Overwrite "
+                            f"(retries left - {overwrite_retry_times}): {err}"
+                        )
+                        try:
+                            overwrite_tasks_in_notion(datestr)
+                            overwrite_retry_times = 1
+                        except Exception as err:
+                            if overwrite_retry_times <= 0:
+                                print(f"Process ERROR Error...")
+                                raise err
+                            else:
+                                overwrite_retry_times -= 1
+                    else:
+                        process_retry_times -= 1
+                    clear_page_cache()
+                    time.sleep(30)
                     continue
 
                 update_window.append(is_changed)
                 while len(update_window) > 5:
                     update_window.pop(0)
                 if any(update_window):
-                    update_process_time = time.time() + 1  # if updated lines
+                    update_process_time = time.time() + 30  # if updated lines
                     if is_sleep_mode:
                         print("Changing to fast update mode. Changes detected")
                     is_sleep_mode = False
                 else:
-                    update_process_time = time.time() + 5  # sleep mode
+                    update_process_time = time.time() + 60  # sleep mode
                     if not is_sleep_mode:
                         print("Changing to sleep mode after no changes detected")
                     is_sleep_mode = True
@@ -132,6 +147,7 @@ def main(
             if not is_skip_calendar and time.time() >= update_calendar_time:
                 try:
                     sync_tasks_to_calendar(datestr, filename, push_only=True)
+                    calendar_retry_times = 3
                 except Exception as err:
                     print(
                         f"Calendar ERROR: (retries left - {calendar_retry_times}): {err}"

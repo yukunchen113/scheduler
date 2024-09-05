@@ -205,12 +205,22 @@ def split_desc_and_uuid(raw_description: str):
 def process_task_line(
     line: TransformStr, task_type: TaskType = TaskType.regular
 ) -> tuple[Optional[Task], int]:
-    matches = re.findall(
-        get_task_config_str_format(task_type),
-        line,
-    )
-    if not matches:
+
+    try:
+        task_types = iter(task_type)
+    except TypeError:
+        # not iterable
+        task_types = [task_type]
+
+    for task_type in task_types:
+        if matches := re.findall(
+            get_task_config_str_format(task_type),
+            line,
+        ):
+            break
+    else:
         return None, -1
+
     (
         start_diff,
         subtask_tabs,
@@ -423,7 +433,9 @@ def _process_taskgroups(
 
 
 def process_taskgroups_from_lines(
-    lines: list[TransformStr], default_datetime: Optional[datetime] = None
+    lines: list[TransformStr],
+    default_datetime: Optional[datetime] = None,
+    task_type: TaskType = TaskType.regular,
 ) -> list[TaskGroup]:
     # create tasks
     lines_with_level: list[tuple[LINE_TYPE, int]] = []
@@ -431,7 +443,7 @@ def process_taskgroups_from_lines(
     # gather lines
     level = 0
     for line in lines:
-        task, subtask_level = process_task_line(line)
+        task, subtask_level = process_task_line(line, task_type=task_type)
         if task is not None:
             lines_with_level.append((task, subtask_level, line))
             level = subtask_level

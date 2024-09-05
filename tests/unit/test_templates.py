@@ -127,7 +127,7 @@ def test_user_specified_time_from_template(
     ],
 )
 @patch("plex.daily.template.routines.get_template_base_dir", autospec=True)
-def test_user_specified_time_from_template(
+def test_template_base_template_internal_specified_uuid(
     mock_get_template_base_dir: MagicMock, str_input: str, str_output: str
 ) -> None:
     mock_get_template_base_dir.return_value = MOCK_TEMPLATE_BASE_DR

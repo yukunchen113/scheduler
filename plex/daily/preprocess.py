@@ -9,7 +9,11 @@ from plex.daily.tasks.base import (
     TaskType,
     flatten_taskgroups_into_tasks,
 )
-from plex.daily.tasks.config import convert_to_string, process_task_line
+from plex.daily.tasks.config import (
+    convert_to_string,
+    process_task_line,
+    process_taskgroups_from_lines,
+)
 from plex.daily.tasks.logic.calculations import calculate_times_in_taskgroup_list
 from plex.daily.tasks.logic.conversions import (
     get_taskgroups_from_timing_configs,
@@ -25,6 +29,7 @@ from plex.daily.timing.process import (
     convert_timing_to_str,
     gather_existing_uuids_from_lines,
     get_timing_from_lines,
+    indent_line,
     is_valid_timing_str,
     split_desc_and_uuid,
 )
@@ -70,28 +75,56 @@ def remove_timings_given_task_deletion_specification(
 ) -> tuple[list[TransformStr], list[TransformStr]]:
     timings, timing_lines = get_timing_from_lines(timing_lines)
     cur_timing_map = get_timing_uuid_mapping(timings)
+    TRANSFORM.stop_recording()
+    cur_tasks_map = {
+        task.uuid: task
+        for task in flatten_taskgroups_into_tasks(
+            process_taskgroups_from_lines(task_lines, task_type=TaskType)
+        )
+    }
+    TRANSFORM.start_recording()
+
     for line in task_lines:
-        task, _ = process_task_line(line, task_type=TaskType.deletion_request)
-        if task is None:
+        main_task, _ = process_task_line(line, task_type=TaskType.deletion_request)
+        if main_task is None:
             continue
-        timing_uuid, index = get_timing_uuid_from_task_uuid(task.uuid)
-        cur_timing = cur_timing_map[timing_uuid]
-        existing_string = convert_timing_to_str(cur_timing)
-        line_num = timing_lines.index(existing_string)
-        remove_timing_index_from_timing(cur_timing, index)
-        if not cur_timing.timings:
-            TRANSFORM.delete(timing_lines.pop(line_num))
-        else:
-            timing_lines[line_num] = TRANSFORM.replace(
-                timing_lines[line_num],
-                convert_timing_to_str(cur_timing),
-                dataclasses.replace(
-                    TRANSFORM.get_metadata(
+        main_task = cur_tasks_map[main_task.uuid]
+
+        for task in [main_task] + flatten_taskgroups_into_tasks(
+            main_task.subtaskgroups
+        ):
+            # delete related timing
+            timing_uuid, index = get_timing_uuid_from_task_uuid(task.uuid)
+            if timing_uuid not in cur_timing_map:
+                # already deleted
+                continue
+            cur_timing: TimingConfig = cur_timing_map[timing_uuid]
+            existing_string = convert_timing_to_str(cur_timing)
+            if existing_string in timing_lines:
+                line_num = timing_lines.index(existing_string)
+                remove_timing_index_from_timing(cur_timing, index)
+                if not cur_timing.timings:
+                    TRANSFORM.delete(timing_lines.pop(line_num))
+                    # delete notes as well
+                    for note in cur_timing.notes:
+                        TRANSFORM.delete(
+                            timing_lines.pop(
+                                timing_lines.index(
+                                    indent_line(note, cur_timing.subtiming_level + 1)
+                                )
+                            )
+                        )
+                else:
+                    timing_lines[line_num] = TRANSFORM.replace(
                         timing_lines[line_num],
-                    ),
-                    is_preprocessed=True,
-                ),
-            )
+                        convert_timing_to_str(cur_timing),
+                        dataclasses.replace(
+                            TRANSFORM.get_metadata(
+                                timing_lines[line_num],
+                            ),
+                            is_preprocessed=True,
+                        ),
+                    )
     return timing_lines, task_lines
 
 

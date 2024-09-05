@@ -1,6 +1,6 @@
 import random
 
-PATTERN_UUID = "[A-Za-z0-9]|-|_|/"
+PATTERN_UUID = "[A-Za-z0-9]|-|_|/|."
 
 # generated uuid is lowercase alpha numeric
 # as large characters randomly generated are distracting.

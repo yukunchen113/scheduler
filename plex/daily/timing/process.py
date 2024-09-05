@@ -55,7 +55,6 @@ def convert_timing_to_str(timing: TimingConfig, *, n_indents: Optional[int] = No
 
     if n_indents is None:
         n_indents = timing.subtiming_level
-
     return indent_line(string, n_indents=n_indents)
 
 
@@ -98,11 +97,11 @@ def process_information_after_timing(input_str: str):
 
 def indent_line(string: str, n_indents: int = 1):
     for _ in range(n_indents):
-        if not re.match(r"\t*-", string):
+        if not re.match(r"\t*-", string) and string.strip():
             if not string.startswith(" "):
                 string = " " + string
             string = "-" + string
-        else:
+        elif string.strip():
             string = "\t" + string
     return string
 
@@ -190,6 +189,11 @@ def get_timing_from_indexed_lines(
 ) -> tuple[list[TimingConfig], dict[int, TransformStr]]:
     output: list[TimingConfig] = []
 
+    lines = {
+        lidx: TRANSFORM.replace(line, line.replace("    ", "\t"))
+        for lidx, line in lines.items()
+    }
+
     timing_config = None
     subtiming_lines: Optional[dict[int, str]] = None
     replaced_lines = copy.copy(lines)
@@ -198,13 +202,20 @@ def get_timing_from_indexed_lines(
         if line.startswith(SPLITTER):
             # splitter
             break
-        elif re.match(r"(?:\t+)?-\s.*", line) and timing_config:
+        elif re.match(r"(?:\t+)?-\s.*", line) or not line.strip():
             if subtiming_lines is None:
                 subtiming_lines = {}
-            subtiming_lines[lidx] = TRANSFORM.replace(line, line[1:])
+            new_line = None
+            if line.startswith("- "):
+                new_line = line[2:]
+            elif line.startswith("\t") or line.startswith("-"):
+                new_line = line[1:]
+            if new_line is not None:
+                subtiming_lines[lidx] = TRANSFORM.replace(line, new_line)
         else:
             # construct prev timing
             if timing_config is not None:
+                notes = []
                 if subtiming_lines:
                     subtimings, replaced_sublines = get_timing_from_indexed_lines(
                         subtiming_lines,
@@ -212,12 +223,23 @@ def get_timing_from_indexed_lines(
                         used_uuids=used_uuids,
                         subtiming_level=subtiming_level + 1,
                     )
+                    notes = [
+                        note
+                        for _, note in sorted(subtiming_lines.items())
+                        if not is_valid_timing_str(note)
+                        and note.strip()
+                        and not re.match(
+                            r"(?:\t+)?-\s.*", note
+                        )  # notion can't process multi-level paragraphs
+                    ]
                     for k, v in replaced_sublines.items():
                         replaced_lines[k] = TRANSFORM.replace(v, indent_line(v))
                 else:
                     subtimings = None
                 output.append(
-                    dataclasses.replace(timing_config, subtimings=subtimings or [])
+                    dataclasses.replace(
+                        timing_config, notes=notes, subtimings=subtimings or []
+                    )
                 )
 
             # start accum next timing
@@ -245,6 +267,7 @@ def get_timing_from_indexed_lines(
 
     # construct last timing
     if timing_config is not None:
+        notes = []
         if subtiming_lines:
             subtimings, replaced_sublines = get_timing_from_indexed_lines(
                 subtiming_lines,
@@ -252,11 +275,20 @@ def get_timing_from_indexed_lines(
                 used_uuids=used_uuids,
                 subtiming_level=subtiming_level + 1,
             )
+            notes = [
+                note
+                for _, note in sorted(subtiming_lines.items())
+                if not is_valid_timing_str(note)
+                and note.strip()
+                and not re.match(r"(?:\t+)?-\s.*", note)
+            ]
             for k, v in replaced_sublines.items():
                 replaced_lines[k] = TRANSFORM.replace(
                     v, indent_line(v), soft_failure=True
                 )
         else:
             subtimings = None
-        output.append(dataclasses.replace(timing_config, subtimings=subtimings or []))
+        output.append(
+            dataclasses.replace(timing_config, notes=notes, subtimings=subtimings or [])
+        )
     return output, replaced_lines

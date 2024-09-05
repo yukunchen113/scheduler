@@ -28,15 +28,34 @@ def get_client() -> Client:
     return Client(auth=get_secret())
 
 
-@functools.cache
-def get_page(page_name: str = PAGE_NAME):
+class PageNotFoundError(ValueError):
+    """Page is not found"""
+
+
+PAGE_CACHE = {}
+
+
+def get_page(page_name):
+    if page_name in PAGE_CACHE:
+        return PAGE_CACHE[page_name]
     notion = get_client()
-    results = notion.search(query=page_name).get("results")
-    if not results:
-        raise ValueError(
-            f"Page '{page_name}' not found. Please give your integrations access to a page named '{page_name}'"
-        )
-    return results[0]
+    for result in notion.search(query=page_name).get("results"):
+        if not result["archived"] and not result["in_trash"]:
+            try:
+                if (
+                    result["object"] == "database"
+                    or "".join(
+                        i["plain_text"] for i in result["properties"]["title"]["title"]
+                    )
+                    == page_name
+                ):
+                    PAGE_CACHE[page_name] = result
+                    return result
+            except KeyError:
+                pass
+    raise PageNotFoundError(
+        f"Page '{page_name}' not found. Please give your integrations access to a page named '{page_name}'"
+    )
 
 
 def process_notion_result_to_notion_content(
@@ -92,23 +111,40 @@ def process_notion_result_to_notion_content(
     return None
 
 
-def get_contents(block_id: Optional[str] = None) -> list["NotionContent"]:
+def get_subpages():
+    subpages = {}
+    for result in (
+        get_client().blocks.children.list(get_page(PAGE_NAME)["id"]).get("results")
+    ):
+        if "child_page" in result:
+            PAGE_CACHE[result["child_page"]["title"]] = result
+            subpages[result["child_page"]["title"]] = result["id"]
+    return subpages
+
+
+def get_contents(
+    block_id: Optional[str] = None, default_page_name: str = PAGE_NAME
+) -> list["NotionContent"]:
+    contents = []
     notion = get_client()
     if block_id is None:
-        block_id = get_page()["id"]
-    contents = []
+        try:
+            block_id = get_page(default_page_name)["id"]
+        except PageNotFoundError:
+            return contents
     database_content = {
         make_database_content_into_link(content)["url"]: content
         for content in pull_database_contents_from_notion()
     }
-
     for result in notion.blocks.children.list(block_id).get("results"):
         notion_content = process_notion_result_to_notion_content(
             result, database_content
         )
         if notion_content is not None:
             if result.get("has_children"):
-                notion_content.children = get_contents(block_id=result["id"])
+                notion_content.children = get_contents(
+                    block_id=result["id"], default_page_name=default_page_name
+                )
             contents.append(notion_content)
     return contents
 
@@ -250,14 +286,37 @@ def get_all_database_contents_from_notion_content(
     return database_contents
 
 
+def create_page(page_name: str):
+    notion = get_client()
+    parent_id = get_page(PAGE_NAME)["id"]
+    page = notion.pages.create(
+        parent={"page_id": parent_id},
+        properties={
+            "title": [{"text": {"content": page_name}}],
+        },
+    )
+    PAGE_CACHE[page_name] = page
+    return page
+
+
+def clear_page_cache():
+    for key in list(PAGE_CACHE.keys()):
+        PAGE_CACHE.pop(key)
+
+
 def add_tasks_after(
     n_contents: list[Union[NotionContentGroup, NotionContent]],
     after_uuid: Optional[str] = None,
     parent_uuid: Optional[str] = None,
+    default_page_name: str = PAGE_NAME,
 ):
     notion = get_client()
     if parent_uuid is None:
-        parent_uuid = get_page()["id"]
+        try:
+            parent_uuid = get_page(default_page_name)["id"]
+        except PageNotFoundError:
+            parent_uuid = create_page(default_page_name)["id"]
+            print(f"Creating new notion page {default_page_name}")
 
     database_contents = []
     for content in n_contents:
@@ -282,7 +341,10 @@ def add_tasks_after(
         n_content.notion_uuid = result["id"]
         if isinstance(n_content, NotionContentGroup):
             for child_content, child_result in zip(
-                n_content.contents, get_contents(block_id=result["id"])["results"]
+                n_content.contents,
+                get_contents(
+                    block_id=result["id"], default_page_name=default_page_name
+                )["results"],
             ):
                 child_content.notion_uuid = child_result["id"]
 
@@ -295,6 +357,9 @@ def delete_block(
     if notion_uuid:
         notion = get_client()
         notion.blocks.delete(notion_uuid)
+        for page_name, page in list(PAGE_CACHE.items()):
+            if page["id"] == notion_uuid:
+                PAGE_CACHE.pop(page_name)
 
 
 @dataclass
@@ -319,9 +384,9 @@ def get_database():
         database = get_page(DATABASE)
         if database["in_trash"]:
             raise ValueError("Database is deleted.")
-    except ValueError:
+    except PageNotFoundError:
         database = notion.databases.create(
-            parent={"type": "page_id", "page_id": get_page()["id"]},
+            parent={"type": "page_id", "page_id": get_page(PAGE_NAME)["id"]},
             title=[
                 {
                     "type": "text",
@@ -358,7 +423,7 @@ def pull_database_contents_from_notion():
             .databases.query(get_page(DATABASE)["id"])
             .get("results")
         ]
-    except ValueError:
+    except (ValueError, PageNotFoundError):
         return []
 
 
@@ -392,7 +457,7 @@ def update_database_contents_in_notion(contents: list[DatabaseContent]):
 def get_block(block_id: int):
     notion = get_client()
     blocks = notion.blocks.retrieve(block_id)
-    if blocks.get("archived"):
+    if blocks.get("archived") or blocks.get("in_trash"):
         return None
     return process_notion_result_to_notion_content(blocks)
 
