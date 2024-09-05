@@ -67,7 +67,7 @@ def main(
     if filename is None:
         filename = datestr
     filename = make_daily_filename(filename, not no_process_daily)
-    if not no_process_daily:
+    if not no_process_daily and not autoupdate:
         process_daily_file(datestr, filename, source)
 
     if print_json:
@@ -100,7 +100,7 @@ def main(
         update_window = []
         is_sleep_mode = False
         process_retry_times = 5
-        overwrite_retry_times = 3
+        overwrite_retry_times = 1
         while True:
             if time.time() >= update_process_time:
                 try:
@@ -117,8 +117,7 @@ def main(
                         )
                         try:
                             overwrite_tasks_in_notion(datestr)
-                            overwrite_retry_times = 3
-                            process_retry_times = 5
+                            overwrite_retry_times = 1
                         except Exception as err:
                             if overwrite_retry_times <= 0:
                                 print(f"Process ERROR Error...")
@@ -128,19 +127,19 @@ def main(
                     else:
                         process_retry_times -= 1
                     clear_page_cache()
-                    time.sleep(3)
+                    time.sleep(30)
                     continue
 
                 update_window.append(is_changed)
                 while len(update_window) > 5:
                     update_window.pop(0)
                 if any(update_window):
-                    update_process_time = time.time() + 1  # if updated lines
+                    update_process_time = time.time() + 30  # if updated lines
                     if is_sleep_mode:
                         print("Changing to fast update mode. Changes detected")
                     is_sleep_mode = False
                 else:
-                    update_process_time = time.time() + 5  # sleep mode
+                    update_process_time = time.time() + 60  # sleep mode
                     if not is_sleep_mode:
                         print("Changing to sleep mode after no changes detected")
                     is_sleep_mode = True

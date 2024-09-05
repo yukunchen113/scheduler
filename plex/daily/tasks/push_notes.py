@@ -103,7 +103,7 @@ def sync_tasks_to_notion(datestr, force_push=False) -> bool:
         if notion_sections is None and datestr in get_subpages():
             raise RuntimeError("Subpage exists but content not found.")
         # if first time generation, add everything
-        print("Pushing Existing Notion Tasks...")
+        print(f"Pushing Notion Tasks to {datestr}...")
         _, _, new_tasks = split_lines_across_splitter(
             TRANSFORM.construct_content(), is_separate_splitter=True
         )
@@ -118,7 +118,6 @@ def sync_tasks_to_notion(datestr, force_push=False) -> bool:
         )
         is_changed = True
     else:
-        assert get_page(datestr)["id"] == get_subpages()[datestr]
         current_tasks = {
             section.notion_uuid: section.parent_notion_uuid
             for section in flatten_string_sections(notion_sections)
@@ -134,7 +133,10 @@ def sync_tasks_to_notion(datestr, force_push=False) -> bool:
                 focus_lines=[initial_state], include_if_contacted=additional_lines
             )
             if notion_uuid is None:
-                additional_lines += final_state
+                additional_lines += TRANSFORM.construct_content(
+                    focus_lines=[initial_state],
+                    show_all_lines_generated_from_focus=True,
+                )
             if len(final_state) == 1 and final_state[0] == initial_state:
                 continue
             if notion_uuid in current_tasks:

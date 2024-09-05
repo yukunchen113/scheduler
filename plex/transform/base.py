@@ -272,6 +272,7 @@ class Transform:
         self,
         focus_lines: Optional[TransformType] = None,
         include_if_contacted: Optional[TransformType] = None,
+        show_all_lines_generated_from_focus: bool = False,
     ) -> list[TransformType]:
         tail = {}
         head = {"content": None, "next": tail}
@@ -284,8 +285,8 @@ class Transform:
         )
 
         include_if_contacted = (
-            [focus_line.transform_id for focus_line in include_if_contacted]
-            if focus_lines
+            [extra_line.transform_id for extra_line in include_if_contacted]
+            if include_if_contacted
             else []
         )
 
@@ -294,8 +295,6 @@ class Transform:
 
             # validations
             if isinstance(state, Update):
-                from pprint import pprint
-
                 if state.prev_sequence_id not in node_index:
                     output = [
                         v
@@ -307,16 +306,21 @@ class Transform:
                     pprint(output)
                     exit()
 
-            # if focus graph is specified,
+            # if focus graph is specified, and we're adding after or updating
             if (
                 isinstance(state, Update)
                 and state.prev_sequence_id in focus_graph_id_nodes
             ):
-                focus_graph_id_nodes.append(state.sequence_id)
+                if (
+                    state.add_after_sequence_id in focus_graph_id_nodes
+                    or state.update_type == UpdateType.update
+                    or show_all_lines_generated_from_focus
+                ):
+                    focus_graph_id_nodes.append(state.sequence_id)
 
+            # also include if add after is specified in focus group.
             if (
-                isinstance(state, Update)
-                and state.sequence_id in include_if_contacted
+                state.sequence_id in include_if_contacted
                 and state.add_after_sequence_id in focus_graph_id_nodes
             ):
                 focus_graph_id_nodes.append(state.sequence_id)
