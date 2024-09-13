@@ -127,19 +127,19 @@ def main(
                     else:
                         process_retry_times -= 1
                     clear_page_cache()
-                    time.sleep(30)
+                    time.sleep(3)
                     continue
 
                 update_window.append(is_changed)
                 while len(update_window) > 5:
                     update_window.pop(0)
                 if any(update_window):
-                    update_process_time = time.time() + 30  # if updated lines
+                    update_process_time = time.time() + 1  # if updated lines
                     if is_sleep_mode:
                         print("Changing to fast update mode. Changes detected")
                     is_sleep_mode = False
                 else:
-                    update_process_time = time.time() + 60  # sleep mode
+                    update_process_time = time.time() + 5  # sleep mode
                     if not is_sleep_mode:
                         print("Changing to sleep mode after no changes detected")
                     is_sleep_mode = True
