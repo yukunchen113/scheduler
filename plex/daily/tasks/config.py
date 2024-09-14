@@ -166,10 +166,10 @@ def convert_taskgroups_to_lines(
         # get tasks
         towrite += convert_to_string(taskgroups, is_skip_tranform=is_skip_transform)
 
-        # clean up lines that weren't transformed
-        for remaining_line in lines:
-            if not TRANSFORM.is_updated(remaining_line):
-                TRANSFORM.delete(remaining_line)
+    # clean up lines that weren't transformed
+    for remaining_line in lines:
+        if not TRANSFORM.is_updated(remaining_line):
+            TRANSFORM.delete(remaining_line)
     return towrite
 
 

@@ -181,6 +181,19 @@ def gather_existing_uuids_from_lines(lines):
     return uuids
 
 
+def gather_notes_from_timings(
+    timings: list[TimingConfig], timing_level_subtraction: int = 0
+) -> list[TransformStr]:
+    notes = []
+    for timing in timings:
+        notes += [
+            indent_line(i, timing.subtiming_level - timing_level_subtraction)
+            for i in timing.notes
+        ]
+        notes += gather_notes_from_timings(timing.subtimings, timing_level_subtraction)
+    return notes
+
+
 def get_timing_from_indexed_lines(
     lines: dict[int, TransformStr],
     config_date: Optional[datetime] = None,
@@ -228,9 +241,8 @@ def get_timing_from_indexed_lines(
                         for _, note in sorted(subtiming_lines.items())
                         if not is_valid_timing_str(note)
                         and note.strip()
-                        and not re.match(
-                            r"(?:\t+)?-\s.*", note
-                        )  # notion can't process multi-level paragraphs
+                        and not note
+                        in gather_notes_from_timings(subtimings, subtiming_level)
                     ]
                     for k, v in replaced_sublines.items():
                         replaced_lines[k] = TRANSFORM.replace(v, indent_line(v))
@@ -280,7 +292,7 @@ def get_timing_from_indexed_lines(
                 for _, note in sorted(subtiming_lines.items())
                 if not is_valid_timing_str(note)
                 and note.strip()
-                and not re.match(r"(?:\t+)?-\s.*", note)
+                and not note in gather_notes_from_timings(subtimings, subtiming_level)
             ]
             for k, v in replaced_sublines.items():
                 replaced_lines[k] = TRANSFORM.replace(

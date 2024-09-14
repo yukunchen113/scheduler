@@ -183,7 +183,7 @@ def convert_config_str_to_string_section(line: str):
                 + rf"({make_regex_parenthesis_non_capturing(fformat.name)})"
                 + rf"({make_regex_parenthesis_non_capturing(fformat.uuid)})"
                 + rf"({make_regex_parenthesis_non_capturing(fformat.time)})"
-                + rf"(?:{OVERLAP_START_FORMAT})?"
+                + rf"(?:{OVERLAP_END_FORMAT})?"
                 + rf"({make_regex_parenthesis_non_capturing(fformat.end_diff)})?"
             ),
             line,
