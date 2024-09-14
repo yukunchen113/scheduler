@@ -24,7 +24,7 @@ from plex.daily.template.routines import (
     process_replacements,
     process_template_lines,
 )
-from plex.daily.timing.base import TimingConfig, unpack_timing_uuid
+from plex.daily.timing.base import TimingConfig, flatten_timings, unpack_timing_uuid
 from plex.daily.timing.process import (
     convert_timing_to_str,
     gather_existing_uuids_from_lines,
@@ -98,33 +98,35 @@ def remove_timings_given_task_deletion_specification(
             if timing_uuid not in cur_timing_map:
                 # already deleted
                 continue
-            cur_timing: TimingConfig = cur_timing_map[timing_uuid]
-            existing_string = convert_timing_to_str(cur_timing)
-            if existing_string in timing_lines:
-                line_num = timing_lines.index(existing_string)
-                remove_timing_index_from_timing(cur_timing, index)
-                if not cur_timing.timings:
-                    TRANSFORM.delete(timing_lines.pop(line_num))
-                    # delete notes as well
-                    for note in cur_timing.notes:
-                        TRANSFORM.delete(
-                            timing_lines.pop(
-                                timing_lines.index(
-                                    indent_line(note, cur_timing.subtiming_level + 1)
+            for cur_timing in flatten_timings([cur_timing_map[timing_uuid]]):
+                existing_string = convert_timing_to_str(cur_timing)
+                if existing_string in timing_lines:
+                    line_num = timing_lines.index(existing_string)
+                    remove_timing_index_from_timing(cur_timing, index)
+                    if not cur_timing.timings:
+                        TRANSFORM.delete(timing_lines.pop(line_num))
+                        # delete notes as well
+                        for note in cur_timing.notes:
+                            TRANSFORM.delete(
+                                timing_lines.pop(
+                                    timing_lines.index(
+                                        indent_line(
+                                            note, cur_timing.subtiming_level + 1
+                                        )
+                                    )
                                 )
                             )
-                        )
-                else:
-                    timing_lines[line_num] = TRANSFORM.replace(
-                        timing_lines[line_num],
-                        convert_timing_to_str(cur_timing),
-                        dataclasses.replace(
-                            TRANSFORM.get_metadata(
-                                timing_lines[line_num],
+                    else:
+                        timing_lines[line_num] = TRANSFORM.replace(
+                            timing_lines[line_num],
+                            convert_timing_to_str(cur_timing),
+                            dataclasses.replace(
+                                TRANSFORM.get_metadata(
+                                    timing_lines[line_num],
+                                ),
+                                is_preprocessed=True,
                             ),
-                            is_preprocessed=True,
-                        ),
-                    )
+                        )
     return timing_lines, task_lines
 
 

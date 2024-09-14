@@ -40,3 +40,11 @@ def unpack_timing_uuid(uuid: str) -> tuple[str, Optional[int]]:
         return parts[0], int(parts[1])
     else:
         return parts[0], None
+
+
+def flatten_timings(timings: list[TimingConfig]):
+    output = []
+    for timing in timings:
+        output.append(timing)
+        output += flatten_timings(timing.subtimings or [])
+    return output

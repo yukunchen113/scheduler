@@ -1,3 +1,4 @@
+import re
 from collections import defaultdict
 from datetime import datetime
 from typing import Optional
@@ -38,7 +39,9 @@ def get_taskgroups_from_timing_configs(
                         timing_config.subtimings, uuid_count
                     )
                 ),
-                notes=timing_config.notes,
+                notes=[
+                    i for i in timing_config.notes if not re.match(r"(?:\t+)?-\s.*", i)
+                ],  # notion can't process multi-level paragraphs
                 source_str=timing_config.source_str,
                 is_source_timing=True,
             )

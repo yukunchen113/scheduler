@@ -266,6 +266,47 @@ def test_task_subtasks(str_input: str, str_output: str) -> None:
             "\n"
             "\t7:30-7:30:\ttest 2 |untitled/1:0| (0)\t\n",
         ),
+        (
+            "prep for next day's class |daily.strength.pack/0| [10]\n"
+            "- pack items \n"
+            "\t- bjj: gi, belt, mouthguard, compression shirt\n"
+            "\t- muay thai: shorts, tshirt, gloves, wraps\n"
+            "- sign up for next weeks classes\n"
+            "- add dates to snippets\n"
+            "-------------\n"
+            "\n"
+            "\t7:30-7:40:\tprep for next day's class |daily.strength.pack/0:0| (-)\t\n"
+            "\tpack items \n"
+            "\tsign up for next weeks classes\n"
+            "\tadd dates to snippets\n"
+            "\ttest\n",
+            "",
+        ),
+        (
+            "debug project |software.project/0| [1h30]\n"
+            "- debug project - plan |software.learn.plan/0| [15]\n"
+            "\t- write down plans for debugging and why I think these are the places that are of interest\n"
+            "\t- test [10]\n"
+            "\t\t- test 2 [10]\n"
+            "\t\t\t- test 2 note\n"
+            "\t\t- test note\n"
+            "\t- think about what exactly needs to be changed. Identify the simplist way to change it\n"
+            "- debug project - execute |software.technique/0| [1h]\n"
+            "\t- write down workflows that were changed and how they were changed\n"
+            "- debug project - retro |software.learn.improve/0| [20]\n"
+            "\t- do retro on what you actually changed and if it aligned with your initial plan\n"
+            "-------------\n"
+            "\n"
+            "\t7:30-9:00:\tdebug project |software.project/0:0| (-)\t\n"
+            "\t\t7:30-7:45:\tdebug project - plan |software.learn.plan/0:0| (15)\t\n"
+            "\t\twrite down plans for debugging and why I think these are the places that are of interest\n"
+            "\t\tthink about what exactly needs to be changed. Identify the simplist way to change it\n"
+            "\t\t7:45-8:45:\tdebug project - execute |software.technique/0:0| (1h)\t\n"
+            "\t\twrite down workflows that were changed and how they were changed\n"
+            "\t\t8:45-9:05:\tdebug project - retro |software.learn.improve/0:0| (20)\t\n"
+            "\t\tdo retro on what you actually changed and if it aligned with your initial plan\n",
+            "",
+        ),
     ],
 )
 def test_task_induced_deletion(str_input: str, str_output: str) -> None:

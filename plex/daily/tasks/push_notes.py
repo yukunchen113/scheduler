@@ -255,9 +255,11 @@ def pull_tasks_from_notion(datestr: str) -> Optional[list[StringSection]]:
     # don't pull tasks if we still have preprocessed items as these could cause duplications
     PREPROCESSED.join()
     try:
-        return convert_notion_contents_to_string_sections(
+        if contents := convert_notion_contents_to_string_sections(
             get_contents(default_page_name=datestr)
-        )
+        ):
+            return contents
+        return None
     except PageNotFoundError:
         return None
 
