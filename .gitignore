@@ -48,9 +48,14 @@ dist/**
 package.nls.*.json
 l10n/
 daily/*
+weekly/*
+!weekly/sample_minimal.txt
 calendar/*
 routines/
 secrets.py
+credentials*.json
+token.json
+token.pickle
 cache_files/
 build/
 dist/

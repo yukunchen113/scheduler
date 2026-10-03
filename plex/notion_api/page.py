@@ -12,15 +12,23 @@ from notion_client import Client
 from notion_client.errors import APIResponseError
 
 CREDENTIALS_BASEPATH = os.path.join(os.environ["HOME"], ".credentials/")
+from plex.config import get_notion_api_key
+
 PAGE_NAME = "Schedule"
 DATABASE = "Task Details"
 
 
 def get_secret():
+    key = get_notion_api_key()
+    if key:
+        return key
     filepath = os.path.join(CREDENTIALS_BASEPATH, "notion-api-key")
-    with open(filepath) as file:
-        secret = file.read()
-    return secret
+    if os.path.exists(filepath):
+        with open(filepath) as file:
+            return file.read().strip()
+    raise FileNotFoundError(
+        "Notion API key not found. Run 'plex setup' to configure Notion sync."
+    )
 
 
 @functools.cache

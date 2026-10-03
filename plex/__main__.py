@@ -27,7 +27,14 @@ def main(
     print_json: bool = False,
     autoupdate: bool = False,
     source: str = "file",
-    is_skip_calendar: bool = False,
+    authenticate: bool = False,
+    setup: bool = False,
+    week: bool = False,
+    week_watch: bool = False,
+    week_init: Optional[str] = None,
+    init: Optional[str] = None,
+    template: Optional[str] = None,
+    overwrite: bool = False,
 ) -> None:
     """Plex: Planning and execution command line tool
 
@@ -44,7 +51,60 @@ def main(
             If this is the first time running with something other than file, remember to first push your changes.
             Available options: (file, notion)
         is_skip_calendar (bool, optional): skip calendar updates
+        authenticate (bool, optional): re-authorize Google Calendar and Tasks tokens. Defaults to False.
+        setup (bool, optional): run the one-stop setup wizard. Defaults to False.
+        week (bool, optional): evaluate and open the single-file weekly planner. Defaults to False.
+        week_watch (bool, optional): live watch mode for the single-file weekly planner. Defaults to False.
+        week_init (Optional[str], optional): initialize weekly planner with specified routine template or generator. Defaults to None.
+        init (Optional[str], optional): alias for week_init. Defaults to None.
+        template (Optional[str], optional): routine template or generator for weekly planner. Defaults to None.
+        overwrite (bool, optional): overwrite existing weekly file when initializing. Defaults to False.
     """
+    if setup:
+        from plex.setup import main as run_setup_main
+
+        run_setup_main()
+        return
+
+    if authenticate:
+        from plex.authenticate import authenticate as run_auth
+
+        run_auth()
+        return
+
+    init_routine = init or week_init
+    if week or week_watch or init_routine:
+        from plex.weekly import (
+            evaluate_weekly_file,
+            get_weekly_filename,
+            init_weekly_file,
+            watch_weekly_file,
+        )
+
+        ref_date = datetime.date.today()
+        if date:
+            ref_date = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        target_f = filename if filename else get_weekly_filename(ref_date)
+
+        tpls = []
+        if init_routine and init_routine != "True":
+            tpls.append(init_routine)
+        if template:
+            tpls.append(template)
+
+        if init_routine or not os.path.exists(target_f) or overwrite:
+            init_weekly_file(
+                ref_date,
+                overwrite=overwrite,
+                templates=tpls if tpls else None,
+                filename=filename,
+            )
+        if week_watch:
+            watch_weekly_file(target_f)
+        else:
+            evaluate_weekly_file(target_f)
+        return
+
     source = TaskSource(source)
     threading.Thread(target=notion_requestor, daemon=True).start()
 
@@ -61,6 +121,12 @@ def main(
         datestr = (datetime.datetime.today() + datetime.timedelta(days=1)).strftime(
             "%Y-%m-%d"
         )
+    elif filename:
+        base = os.path.basename(filename).replace(".ans", "").replace(".txt", "")
+        try:
+            datestr = datetime.datetime.strptime(base, "%Y-%m-%d").strftime("%Y-%m-%d")
+        except ValueError:
+            datestr = datetime.datetime.today().strftime("%Y-%m-%d")
     else:
         datestr = datetime.datetime.today().strftime("%Y-%m-%d")
 
@@ -160,5 +226,17 @@ def main(
                 update_calendar_time = time.time() + 60
 
 
-if __name__ == "__main__":
+def cli() -> None:
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "setup":
+        from plex.setup import main as run_setup_main
+
+        sys.argv.pop(1)
+        run_setup_main()
+        return
     tapify(main)
+
+
+if __name__ == "__main__":
+    cli()

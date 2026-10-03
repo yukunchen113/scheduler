@@ -1,0 +1,42 @@
+================================================================================
+WEEK 41 (2026-10-05 to 2026-10-11)
+Week Total: 24.0h scheduled | 7.0h slack | Status: ALL OK
+================================================================================
+
+=== Monday (2026-10-05) ========================================================
+# [10:00 - 17:00 | 4h30m scheduled | 2h30m slack | Status: OK]
+lecture [1h30] (10am)
+lab [2h] (14:00)
+workout [1h]
+
+=== Tuesday (2026-10-06) =======================================================
+# [11:30 - 14:30 | 3h00m scheduled | 0m slack | Status: OK]
+lecture [1h30] (11:30am)
+read paper [1h30]
+
+=== Wednesday (2026-10-07) =====================================================
+# [10:00 - 18:00 | 3h30m scheduled | 4h30m slack | Status: OK]
+lecture [1h30] (10am)
+tutorial [1h] (16:00)
+workout [1h]
+
+=== Thursday (2026-10-08) ======================================================
+# [11:30 - 15:00 | 3h30m scheduled | 0m slack | Status: OK]
+lecture [1h30] (11:30am)
+project sprint [2h]
+
+=== Friday (2026-10-09) ========================================================
+# [10:00 - 13:15 | 3h15m scheduled | 0m slack | Status: OK]
+lecture [1h30] (10am)
+workout [1h]
+weekly retro [45]
+
+=== Saturday (2026-10-10) ======================================================
+# [07:30 - 11:30 | 4h00m scheduled | 0m slack | Status: OK]
+groceries [1h]
+relax & hobbies [3h]
+
+=== Sunday (2026-10-11) ========================================================
+# [07:30 - 09:45 | 2h15m scheduled | 0m slack | Status: OK]
+meal prep [1h30]
+plan next week [45]
