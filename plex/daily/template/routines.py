@@ -48,7 +48,7 @@ from plex.daily.timing.process import (
 )
 from plex.transform.base import TRANSFORM, LineSection, Metadata, TransformStr
 
-TEMPLATE_PATTERN = r"\{([^:]*)(?:\:([^:]*))?\}"
+TEMPLATE_PATTERN = r"\{([^:\s{}]+)(?:\:([^:\s{}]+))?\}"
 TEMPLATE_BASE_DIR = "routines"
 
 DEFAULT_TEMPLATE_SECTION = "__default__:\n"

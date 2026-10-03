@@ -1,0 +1,130 @@
+{
+  "name": "plex-vscode",
+  "displayName": "Plex Time-Blocking Scheduler",
+  "description": "Native VS Code CodeLens, auto-evaluation, and one-click actions for Plex planner",
+  "version": "0.1.1",
+  "publisher": "plex",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "plex.setup",
+        "title": "Plex: Run Setup Wizard...",
+        "category": "Plex",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "plex.generateWeek",
+        "title": "Plex: Generate Weekly Plan...",
+        "category": "Plex",
+        "icon": "$(calendar)"
+      },
+      {
+        "command": "plex.evaluateWeek",
+        "title": "Plex: Recalculate Weekly Plan",
+        "category": "Plex",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "plex.exportDaily",
+        "title": "Plex: Export Week to Daily Files",
+        "category": "Plex",
+        "icon": "$(export)"
+      },
+      {
+        "command": "plex.initWeek",
+        "title": "Plex: Re-Initialize Week with Routine...",
+        "category": "Plex",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "plex.exportSingleDay",
+        "title": "Plex: Export Single Day to Daily File",
+        "category": "Plex",
+        "icon": "$(export)"
+      },
+      {
+        "command": "plex.insertRoutine",
+        "title": "Plex: Insert Routine Template...",
+        "category": "Plex",
+        "icon": "$(add)"
+      },
+      {
+        "command": "plex.runDaily",
+        "title": "Plex: Process Daily File",
+        "category": "Plex",
+        "icon": "$(play)"
+      },
+      {
+        "command": "plex.pushCalendar",
+        "title": "Plex: Push Schedule to Google Calendar",
+        "category": "Plex",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "plex.planCommute",
+        "title": "Plex: Plan Commutes (Interactive Routes & Locations)...",
+        "category": "Plex",
+        "icon": "$(location)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "plex.planCommute",
+        "key": "cmd+k c",
+        "mac": "cmd+k c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "plex.exportDaily",
+        "key": "cmd+k e",
+        "mac": "cmd+k e",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "plex.evaluateWeek",
+        "key": "cmd+k r",
+        "mac": "cmd+k r",
+        "when": "editorTextFocus"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "plex.planCommute",
+          "when": "resourceExtname == .ans || resourceExtname == .txt",
+          "group": "navigation@1"
+        },
+        {
+          "command": "plex.runDaily",
+          "when": "resourceExtname == .ans",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Plex Scheduler",
+      "properties": {
+        "plex.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Python interpreter containing Plex dependencies (leave empty to auto-detect)"
+        },
+        "plex.autoEvalOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically recalculate weekly plan in-place whenever a weekly file is saved"
+        }
+      }
+    }
+  }
+}

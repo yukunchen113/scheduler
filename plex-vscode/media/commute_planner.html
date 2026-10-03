@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plex Concise Commute Planner</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <!-- Leaflet Interactive Maps (Google Maps Dark Theme Styling) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body {
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      font-family: Menlo, Monaco, "Courier New", monospace;
+    }
+    .leaflet-container {
+      background-color: #141416 !important;
+      font-family: inherit !important;
+    }
+    .leaflet-bar a {
+      background-color: #252526 !important;
+      color: #d4d4d4 !important;
+      border-bottom: 1px solid #3e3e42 !important;
+    }
+    .leaflet-bar a:hover {
+      background-color: #2d2d30 !important;
+      color: #ffffff !important;
+    }
+    .custom-map-pin {
+      background: transparent !important;
+      border: none !important;
+    }
+    .drag-over-indicator {
+      border-top: 2px solid #007acc !important;
+    }
+  </style>
+</head>
+<body class="p-3 md:p-5 text-xs antialiased">
+
+  <!-- VS Code Editor Container -->
+  <div class="max-w-5xl mx-auto bg-[#1e1e1e] border border-[#3e3e42] rounded-lg overflow-hidden shadow-2xl">
+
+    <!-- Editor Tab Header -->
+    <div class="bg-[#252526] px-3 py-1.5 border-b border-[#333336] flex items-center justify-between text-xs">
+      <div class="flex items-center space-x-2">
+        <div class="bg-[#1e1e1e] text-[#ffffff] px-3 py-1 rounded-t flex items-center space-x-2 border-t border-[#007acc]">
+          <span class="text-[#38bdf8]">🗺️</span>
+          <span class="font-mono text-[11px]"><span id="tab-filename">daily/2026-10-05.ans (Route Mode)</span></span>
+          <span class="text-[#858585] text-[10px]">●</span>
+        </div>
+      </div>
+      <div class="flex items-center space-x-3 text-[11px] font-mono flex-wrap gap-2">
+        <!-- Buffer Multiplier Selector -->
+        <div class="flex items-center space-x-1 text-[#858585]">
+          <span>Buffer:</span>
+          <select id="buffer-select" onchange="changeBuffer(this.value)" class="bg-[#1e1e1e] text-[#4ec9b0] px-1 py-0.5 rounded border border-[#3e3e42] outline-none cursor-pointer">
+            <option value="1.0">1.0x</option>
+            <option value="1.15">1.15x</option>
+            <option value="1.25" selected>1.25x (default)</option>
+            <option value="1.35">1.35x</option>
+            <option value="1.5">1.5x</option>
+          </select>
+        </div>
+        <!-- Global Default Transport Mode (Emojis Only) -->
+        <div class="flex items-center space-x-1 text-[#858585]">
+          <span>Default:</span>
+          <div class="flex items-center space-x-0.5 bg-[#1e1e20] p-0.5 rounded border border-[#3e3e42]" id="default-mode-buttons">
+            <button onclick="changeDefaultTransport('drive')" id="def-btn-drive" title="Drive" class="px-1.5 py-0.5 rounded text-xs transition bg-[#007acc] text-white">🚗</button>
+            <button onclick="changeDefaultTransport('transit')" id="def-btn-transit" title="Transit" class="px-1.5 py-0.5 rounded text-xs transition text-[#858585] hover:text-white hover:bg-[#252528]">🚇</button>
+            <button onclick="changeDefaultTransport('bike')" id="def-btn-bike" title="Bike" class="px-1.5 py-0.5 rounded text-xs transition text-[#858585] hover:text-white hover:bg-[#252528]">🚲</button>
+            <button onclick="changeDefaultTransport('walk')" id="def-btn-walk" title="Walk" class="px-1.5 py-0.5 rounded text-xs transition text-[#858585] hover:text-white hover:bg-[#252528]">🚶</button>
+          </div>
+        </div>
+        <span class="text-emerald-400">auto-eval: on</span>
+      </div>
+    </div>
+
+    <!-- Quick Location Chips (Editor Syntax Style) -->
+    <div class="bg-[#1e1e1e] px-4 py-2 border-b border-[#2d2d30] flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
+      <div class="flex items-center space-x-2">
+        <span class="text-[#858585]">Quick Presets:</span>
+        <button onclick="pinActiveLocation('@Home', '742 Evergreen Terr')" class="bg-[#252526] hover:bg-[#2d2d30] text-[#9cdcfe] px-2 py-0.5 rounded border border-[#3e3e42] hover:border-[#007acc] transition">@Home</button>
+        <button onclick="pinActiveLocation('@Office', '500 Corporate Way')" class="bg-[#252526] hover:bg-[#2d2d30] text-[#9cdcfe] px-2 py-0.5 rounded border border-[#3e3e42] hover:border-[#007acc] transition">@Office</button>
+        <button onclick="pinActiveLocation('@Campus', '100 University Ave')" class="bg-[#252526] hover:bg-[#2d2d30] text-[#9cdcfe] px-2 py-0.5 rounded border border-[#3e3e42] hover:border-[#007acc] transition">@Campus</button>
+        <button onclick="pinActiveLocation('@Gym', '45 Fitness Blvd')" class="bg-[#252526] hover:bg-[#2d2d30] text-[#9cdcfe] px-2 py-0.5 rounded border border-[#3e3e42] hover:border-[#007acc] transition">@Gym</button>
+        <button onclick="pinActiveLocation('@Cafe', '88 Artisan Way')" class="bg-[#252526] hover:bg-[#2d2d30] text-[#9cdcfe] px-2 py-0.5 rounded border border-[#3e3e42] hover:border-[#007acc] transition">@Cafe</button>
+      </div>
+
+      <!-- Quick Address Search -->
+      <div class="flex items-center space-x-1.5 bg-[#252526] px-2 py-0.5 rounded border border-[#3e3e42] text-xs">
+        <span class="text-[#858585]">custom:</span>
+        <input id="custom-addr" type="text" placeholder="type address & enter..." onkeydown="if(event.key==='Enter') pinCustomAddr()" class="bg-transparent text-white text-[11px] outline-none w-44">
+      </div>
+    </div>
+
+    <!-- Main Workspace: Editor on Left | Compact Route Map on Right -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 min-h-[480px]">
+
+      <!-- LEFT: Text-Editor Lines (7 cols) -->
+      <div class="lg:col-span-7 bg-[#1e1e1e] p-2 border-r border-[#2d2d30] font-mono text-xs flex flex-col justify-between select-none">
+
+        <div class="space-y-0.5" id="editor-lines">
+          <!-- Populated by JavaScript with draggable rows & keyboard reordering -->
+        </div>
+
+        <!-- Splitter & Status Line (Editor Style) -->
+        <div class="pt-3 border-t border-[#2d2d30] text-[11px] text-[#858585] flex items-center justify-between">
+          <span class="text-[#6a9955]" id="status-hint">// ↑/↓: move cursor · ⌥↑/⌥↓: move task/commute · T: cycle transit</span>
+          <span class="text-white" id="status-total-time">Total commute: 0m</span>
+        </div>
+
+      </div>
+
+      <!-- RIGHT: Minimal Map & Route Details (5 cols) -->
+      <div class="lg:col-span-5 bg-[#18181b] p-3 flex flex-col justify-between space-y-3 font-mono text-xs">
+
+        <div class="space-y-3">
+          <div class="flex items-center justify-between pb-1 border-b border-[#2d2d30] text-[11px] text-[#858585]">
+            <span class="text-white font-semibold">Active Daily Route</span>
+            <span class="text-emerald-400">Routes API: Active</span>
+          </div>
+
+          <!-- Dynamic Overview SVG Map Canvas -->
+          <div class="relative w-full h-44 bg-[#141416] rounded border border-[#2d2d30] overflow-hidden flex items-center justify-center" id="overview-map-container">
+            <svg class="w-full h-full" viewBox="0 0 400 160" id="overview-route-svg">
+              <path d="M 50 110 C 100 100, 140 40, 200 40 S 300 120, 350 110" stroke="#007acc" stroke-width="3" stroke-dasharray="4 2" fill="none"/>
+              <circle cx="50" cy="110" r="8" fill="#10b981" />
+              <text x="50" y="132" fill="#10b981" font-size="10" text-anchor="middle">@Home</text>
+              <circle cx="200" cy="40" r="8" fill="#007acc" />
+              <text x="200" y="28" fill="#38bdf8" font-size="10" text-anchor="middle">@Office</text>
+              <circle cx="350" cy="110" r="8" fill="#f59e0b" />
+              <text x="350" y="132" fill="#f59e0b" font-size="10" text-anchor="middle">@Gym</text>
+            </svg>
+          </div>
+
+          <!-- Active Segments List (Dynamic) -->
+          <div class="space-y-1.5 text-[11px]" id="route-segments-list">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Live .ans File Preview -->
+        <div class="bg-[#141416] p-2.5 rounded border border-[#2d2d30] text-[10px] font-mono space-y-1">
+          <div class="flex items-center justify-between text-[#858585] pb-1 border-b border-[#252528]">
+            <span class="text-[#38bdf8]">📄 Live .ans File (above -------------)</span>
+            <span class="text-emerald-400">Idempotent</span>
+          </div>
+          <pre id="live-file-preview" class="text-[#d4d4d4] whitespace-pre-wrap select-all font-mono leading-relaxed max-h-32 overflow-y-auto"></pre>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Status Bar (VS Code Style) -->
+    <div class="bg-[#007acc] px-3 py-1 flex items-center justify-between text-[11px] text-white font-mono">
+      <div class="flex items-center space-x-3">
+        <span>Plex Route Engine</span>
+        <span id="status-line-focus">Ln 2, Col 1</span>
+        <span class="bg-[#005a9e] px-1.5 py-0.2 rounded text-[10px]">↑/↓ Cursor</span>
+        <span class="bg-[#005a9e] px-1.5 py-0.2 rounded text-[10px]">⌥↑/⌥↓ Move (Bounded)</span>
+        <span class="bg-[#005a9e] px-1.5 py-0.2 rounded text-[10px]">[T] Cycle Mode</span>
+      </div>
+      <div>
+        <span id="status-active-count">0 commute timings active</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+
+    const vscodeApi = (typeof acquireVsCodeApi !== "undefined") ? acquireVsCodeApi() : null;
+    let isInitializedFromExtension = false;
+    let syncDebounceTimer = null;
+    let userHasMadeChanges = false;
+
+    let bufferFactor = 1.25;
+    let defaultTransportMode = 'drive';
+    let activeIndex = 0; // Active cursor index in scheduleItems
+    let expandedLineId = null; // Which task id has the expanded Google Maps drawer
+    let currentMapInstance = null;
+    let draggedIndex = null;
+    let boundaryWarningTimeout = null;
+
+    // Supported Transportation Types & Factors
+    const transportModes = {
+      drive: { label: 'Drive', icon: '🚗', factor: 1.0 },
+      transit: { label: 'Transit', icon: '🚇', factor: 1.35 },
+      bike: { label: 'Bike', icon: '🚲', factor: 1.25 },
+      walk: { label: 'Walk', icon: '🚶', factor: 3.2 }
+    };
+    const modeKeys = ['drive', 'transit', 'bike', 'walk'];
+
+    // Preset location database with coordinates
+    const presetLocations = {
+      '@Home': { address: '742 Evergreen Terr', lat: 40.7128, lng: -74.0060 },
+      '@Office': { address: '500 Corporate Way', lat: 40.7589, lng: -73.9851 },
+      '@Cafe': { address: '88 Artisan Way', lat: 40.7410, lng: -73.9897 },
+      '@Gym': { address: '45 Fitness Blvd', lat: 40.7282, lng: -73.9942 },
+      '@Campus': { address: '100 University Ave', lat: 40.7295, lng: -73.9965 }
+    };
+
+    // Autocomplete sample places for search
+    const samplePlaces = [
+      { name: '@Chipotle', label: '🌯 Chipotle Mexican Grill', address: '120 Broadway, New York, NY', lat: 40.7081, lng: -74.0113 },
+      { name: '@Sweetgreen', label: '🥗 Sweetgreen', address: '102 8th Ave, New York, NY', lat: 40.7402, lng: -74.0006 },
+      { name: '@BlueBottle', label: '☕ Blue Bottle Coffee', address: '450 W 15th St, New York, NY', lat: 40.7423, lng: -74.0063 },
+      { name: '@JoesPizza', label: '🍕 Joe\'s Pizza', address: '7 Carmine St, New York, NY', lat: 40.7306, lng: -74.0021 },
+      { name: '@WholeFoods', label: '🛒 Whole Foods Market', address: '270 Greenwich St, New York, NY', lat: 40.7145, lng: -74.0118 },
+      { name: '@Equinox', label: '🏋️ Equinox Tribeca', address: '97 Greenwich Ave, New York, NY', lat: 40.7371, lng: -74.0009 },
+      { name: '@CentralPark', label: '🌳 Central Park South', address: '59th St & 5th Ave, New York, NY', lat: 40.7645, lng: -73.9745 }
+    ];
+
+    // Canonical tasks in daily plan
+    let rawTasks = [
+      { id: 't0', text: 'wake up [20]', location: '@Home', address: '742 Evergreen Terr' },
+      { id: 't1', text: 'pack bag [10]', location: null, address: null },
+      { id: 't2', text: 'work [8h10]', location: '@Office', address: '500 Corporate Way' },
+      { id: 't3', text: 'lunch [1h]', location: null, address: null },
+      { id: 't4', text: 'workout [1h]', location: '@Gym', address: '45 Fitness Blvd' },
+      { id: 't5', text: 'get ready for bed [25]', location: '@Home', address: '742 Evergreen Terr' }
+    ];
+
+    // Preserved commute state dictionary: key `${originId}-${destId}` or `${fromLoc}-${toLoc}` -> { mode: 'transit', duration: ... }
+    const commutePreferences = {
+      't0-t2': { mode: 'drive' },
+      't2-t4': { mode: 'transit' },
+      't4-t5': { mode: 'bike' }
+    };
+
+    // Unified schedule items (both tasks and boundary-aware commute items)
+    let scheduleItems = [];
+
+    const travelTimes = {
+      '@Home-@Office': 22,
+      '@Office-@Home': 22,
+      '@Office-@Gym': 26,
+      '@Gym-@Office': 26,
+      '@Gym-@Home': 18,
+      '@Home-@Gym': 18,
+      '@Home-@Campus': 20,
+      '@Campus-@Home': 20,
+      '@Office-@Campus': 15,
+      '@Campus-@Office': 15,
+      '@Campus-@Gym': 24,
+      '@Gym-@Campus': 24,
+      '@Cafe-@Home': 12,
+      '@Home-@Cafe': 12,
+      '@Office-@Cafe': 10,
+      '@Cafe-@Office': 10,
+      '@Cafe-@Gym': 14,
+      '@Gym-@Cafe': 14
+    };
+
+    function updateDefaultModeButtons() {
+      modeKeys.forEach(k => {
+        const btn = document.getElementById(`def-btn-${k}`);
+        if (btn) {
+          if (k === defaultTransportMode) {
+            btn.className = "px-1.5 py-0.5 rounded text-xs transition bg-[#007acc] text-white";
+          } else {
+            btn.className = "px-1.5 py-0.5 rounded text-xs transition text-[#858585] hover:text-white hover:bg-[#252528]";
+          }
+        }
+      });
+    }
+
+    function notifyExtensionOfChange(fileText) {
+      if (!vscodeApi) return;
+      if (!userHasMadeChanges) return; // Do not overwrite on init/opening!
+      clearTimeout(syncDebounceTimer);
+      syncDebounceTimer = setTimeout(() => {
+        vscodeApi.postMessage({
+          command: "updateDocument",
+          content: fileText
+        });
+      }, 150);
+    }
+
+    function linkCommuteBoundaries() {
+      for (let i = 0; i < scheduleItems.length; i++) {
+        const item = scheduleItems[i];
+        if (item.type === 'commute') {
+          // Find preceding task with fromLoc
+          for (let j = i - 1; j >= 0; j--) {
+            if (scheduleItems[j].type === 'task' && scheduleItems[j].taskRef.location === item.fromLoc) {
+              item.originId = scheduleItems[j].taskRef.id;
+              break;
+            }
+          }
+          // Find succeeding task with toLoc
+          for (let j = i + 1; j < scheduleItems.length; j++) {
+            if (scheduleItems[j].type === 'task' && scheduleItems[j].taskRef.location === item.toLoc) {
+              item.destId = scheduleItems[j].taskRef.id;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Listen for messages from extension
+    window.addEventListener("message", event => {
+      const message = event.data;
+      if (!message) return;
+      if (message.command === "init" || message.command === "sync") {
+        isInitializedFromExtension = true;
+        if (message.fileName) {
+          const tabLabel = document.querySelector("#tab-filename");
+          if (tabLabel) tabLabel.innerText = message.fileName + " (Route Mode)";
+        }
+        if (message.bufferFactor) {
+          bufferFactor = message.bufferFactor;
+          const bSel = document.getElementById("buffer-select");
+          if (bSel) bSel.value = String(bufferFactor);
+        }
+        if (message.defaultMode) {
+          defaultTransportMode = message.defaultMode;
+          updateDefaultModeButtons();
+        }
+        if (message.configLocations) {
+          for (const [k, v] of Object.entries(message.configLocations)) {
+            presetLocations[k] = { address: v, lat: 40.7306, lng: -73.9922 };
+          }
+        }
+        if (message.commutes && Array.isArray(message.commutes)) {
+          message.commutes.forEach(c => {
+            const locKey = c.fromLoc + "-" + c.toLoc;
+            commutePreferences[locKey] = { mode: c.mode, duration: c.duration, uuid: c.uuid };
+          });
+        }
+        if (message.tasks && Array.isArray(message.tasks) && message.tasks.length > 0) {
+          rawTasks = message.tasks;
+        }
+
+        if (message.planItems && Array.isArray(message.planItems) && message.planItems.length > 0) {
+          scheduleItems = [];
+          message.planItems.forEach((pi, idx) => {
+            if (pi.type === 'commute') {
+              scheduleItems.push({
+                id: `c_${idx}`,
+                type: 'commute',
+                fromLoc: pi.fromLoc,
+                toLoc: pi.toLoc,
+                uuid: pi.uuid || null,
+                mode: pi.mode || defaultTransportMode,
+                duration: pi.duration || null
+              });
+            } else {
+              scheduleItems.push({
+                id: pi.task.id,
+                type: 'task',
+                taskRef: pi.task
+              });
+            }
+          });
+          linkCommuteBoundaries();
+        } else {
+          reconcileSchedule();
+        }
+
+        userHasMadeChanges = false; // Reset to false on load
+        renderEditor();
+      }
+    });
+
+    // Notify extension that webview is ready
+    if (vscodeApi) {
+      vscodeApi.postMessage({ command: "ready" });
+    }
+
+    function getCommuteMinutes(fromLoc, toLoc, mode = 'drive') {
+      if (!fromLoc || !toLoc || fromLoc === toLoc) return 0;
+      const key = `${fromLoc}-${toLoc}`;
+      const revKey = `${toLoc}-${fromLoc}`;
+      const rawDrive = travelTimes[key] || travelTimes[revKey] || 20;
+
+      let raw = rawDrive;
+      const modeConfig = transportModes[mode] || transportModes.drive;
+
+      if (mode === 'walk' && key.includes('Cafe') && key.includes('Office')) {
+        raw = 8;
+      } else {
+        raw = Math.round(rawDrive * modeConfig.factor);
+      }
+
+      const buffered = Math.round(raw * bufferFactor);
+      return Math.max(5, Math.ceil(buffered / 5) * 5);
+    }
+
+    // Reconcile tasks into scheduleItems with commute bridges placed within valid boundaries
+    function reconcileSchedule() {
+      // Find location transitions between tasks
+      const newItems = [];
+      let prevLocTask = null;
+
+      rawTasks.forEach((task) => {
+        if (task.location) {
+          if (prevLocTask && prevLocTask.location !== task.location) {
+            // Need a commute between prevLocTask and this task
+            const locKey = `${prevLocTask.location}-${task.location}`;
+            const idKey = `${prevLocTask.id}-${task.id}`;
+            const pref = commutePreferences[locKey] || commutePreferences[idKey] || { mode: defaultTransportMode };
+
+            newItems.push({
+              id: `c_${prevLocTask.id}_${task.id}`,
+              type: 'commute',
+              fromLoc: prevLocTask.location,
+              toLoc: task.location,
+              uuid: pref.uuid || null,
+              originId: prevLocTask.id,
+              destId: task.id,
+              targetTask: task.text.split(' ')[0],
+              mode: pref.mode || defaultTransportMode,
+              duration: pref.duration || null
+            });
+          }
+          prevLocTask = task;
+        }
+        newItems.push({
+          id: task.id,
+          type: 'task',
+          taskRef: task
+        });
+      });
+
+      scheduleItems = newItems;
+      if (activeIndex >= scheduleItems.length) {
+        activeIndex = Math.max(0, scheduleItems.length - 1);
+      }
+    }
+
+    function toggleRowExpand(taskId, event) {
+      if (event) event.stopPropagation();
+      expandedLineId = (expandedLineId === taskId) ? null : taskId;
+      // Focus the task item
+      const foundIdx = scheduleItems.findIndex(i => i.type === 'task' && i.taskRef.id === taskId);
+      if (foundIdx !== -1) activeIndex = foundIdx;
+      renderEditor();
+    }
+
+    function pinLocationToTask(taskId, locName, addr, event) {
+      if (event) event.stopPropagation();
+      const task = rawTasks.find(t => t.id === taskId);
+      if (task) {
+        task.location = locName;
+        task.address = addr;
+        if (vscodeApi) { vscodeApi.postMessage({ command: "savePreset", name: locName, address: addr }); }
+      }
+      expandedLineId = null;
+      reconcileSchedule();
+      renderEditor();
+    }
+
+    function pinActiveLocation(locName, addr) {
+      const activeItem = scheduleItems[activeIndex];
+      if (activeItem && activeItem.type === 'task') {
+        pinLocationToTask(activeItem.taskRef.id, locName, addr);
+      } else if (rawTasks[0]) {
+        pinLocationToTask(rawTasks[0].id, locName, addr);
+      }
+    }
+
+    function pinCustomAddr() {
+      const input = document.getElementById('custom-addr');
+      const val = input.value.trim();
+      if (!val) return;
+      const cleanName = val.startsWith('@') ? val : '@' + val.split(',')[0].replace(/\s+/g, '');
+      pinActiveLocation(cleanName, val);
+      input.value = '';
+    }
+
+    function clearLoc(taskId, event) {
+      if (event) event.stopPropagation();
+      const task = rawTasks.find(t => t.id === taskId);
+      if (task) {
+        task.location = null;
+        task.address = null;
+      }
+      if (expandedLineId === taskId) expandedLineId = null;
+      reconcileSchedule();
+      renderEditor();
+    }
+
+    function cycleCommuteMode(commuteId, event) {
+      if (event) event.stopPropagation();
+      const item = scheduleItems.find(i => i.id === commuteId);
+      if (!item || item.type !== 'commute') return;
+
+      const curIdx = modeKeys.indexOf(item.mode);
+      const nextMode = modeKeys[(curIdx + 1) % modeKeys.length];
+      item.mode = nextMode;
+      commutePreferences[`${item.originId}-${item.destId}`] = { mode: nextMode };
+      renderEditor();
+    }
+
+    function cycleActiveTransitMode() {
+      const curItem = scheduleItems[activeIndex];
+      if (!curItem) return;
+
+      if (curItem.type === 'commute') {
+        cycleCommuteMode(curItem.id);
+      } else if (curItem.type === 'task') {
+        // Find preceding or succeeding commute
+        const prevItem = scheduleItems[activeIndex - 1];
+        const nextItem = scheduleItems[activeIndex + 1];
+        if (prevItem && prevItem.type === 'commute') {
+          cycleCommuteMode(prevItem.id);
+        } else if (nextItem && nextItem.type === 'commute') {
+          cycleCommuteMode(nextItem.id);
+        }
+      }
+    }
+
+    function flashBoundaryWarning(msg) {
+      const hint = document.getElementById('status-hint');
+      if (!hint) return;
+      hint.innerText = `⛔ ${msg}`;
+      hint.className = "text-rose-400 font-bold";
+      clearTimeout(boundaryWarningTimeout);
+      boundaryWarningTimeout = setTimeout(() => {
+        hint.innerText = "// ↑/↓: move cursor · ⌥↑/⌥↓: move task/commute · T: cycle transit";
+        hint.className = "text-[#6a9955]";
+      }, 1800);
+    }
+
+    // Move schedule item: if a main task moves past its commute, the commute FOLLOWS!
+    function moveScheduleItem(idx, delta) {
+      const targetIdx = idx + delta;
+      if (targetIdx < 0 || targetIdx >= scheduleItems.length) return false;
+
+      const curItem = scheduleItems[idx];
+
+      // CASE 1: Moving a TASK
+      if (curItem.type === 'task') {
+        const taskId = curItem.taskRef.id;
+
+        // Moving UP (delta = -1)
+        if (delta < 0) {
+          const prevItem = scheduleItems[idx - 1];
+          // If directly above is incoming commute belonging to this task
+          if (prevItem && prevItem.type === 'commute' && prevItem.destId === taskId) {
+            const aboveCommuteIdx = idx - 2;
+            if (aboveCommuteIdx < 0) return false;
+            const aboveItem = scheduleItems[aboveCommuteIdx];
+
+            if (aboveItem.type === 'task' && aboveItem.taskRef.location) {
+              // Moving across origin location task: swap their order in rawTasks
+              const rawA = rawTasks.findIndex(t => t.id === taskId);
+              const rawB = rawTasks.findIndex(t => t.id === aboveItem.taskRef.id);
+              if (rawA !== -1 && rawB !== -1) {
+                const tmp = rawTasks[rawA]; rawTasks[rawA] = rawTasks[rawB]; rawTasks[rawB] = tmp;
+                reconcileSchedule();
+                activeIndex = scheduleItems.findIndex(i => i.type === 'task' && i.taskRef.id === taskId);
+                renderEditor();
+                return true;
+              }
+            } else {
+              // Unpinned task: commute FOLLOWS the main task! Move pair [commute, task] above aboveItem
+              const pair = scheduleItems.splice(idx - 1, 2);
+              scheduleItems.splice(aboveCommuteIdx, 0, ...pair);
+              activeIndex = aboveCommuteIdx + 1;
+              renderEditor();
+              return true;
+            }
+          }
+
+          // If directly above is another task, swap them in rawTasks
+          if (prevItem && prevItem.type === 'task') {
+            const rawA = rawTasks.findIndex(t => t.id === taskId);
+            const rawB = rawTasks.findIndex(t => t.id === prevItem.taskRef.id);
+            if (rawA !== -1 && rawB !== -1) {
+              const tmp = rawTasks[rawA]; rawTasks[rawA] = rawTasks[rawB]; rawTasks[rawB] = tmp;
+              reconcileSchedule();
+              activeIndex = scheduleItems.findIndex(i => i.type === 'task' && i.taskRef.id === taskId);
+              renderEditor();
+              return true;
+            }
+          }
+        }
+
+        // Moving DOWN (delta = 1)
+        if (delta > 0) {
+          const nextItem = scheduleItems[idx + 1];
+          // If directly below is outgoing commute belonging to this task
+          if (nextItem && nextItem.type === 'commute' && nextItem.originId === taskId) {
+            const belowCommuteIdx = idx + 2;
+            if (belowCommuteIdx >= scheduleItems.length) return false;
+            const belowItem = scheduleItems[belowCommuteIdx];
+
+            if (belowItem.type === 'task' && belowItem.taskRef.location) {
+              // Moving across destination location task: swap their order in rawTasks
+              const rawA = rawTasks.findIndex(t => t.id === taskId);
+              const rawB = rawTasks.findIndex(t => t.id === belowItem.taskRef.id);
+              if (rawA !== -1 && rawB !== -1) {
+                const tmp = rawTasks[rawA]; rawTasks[rawA] = rawTasks[rawB]; rawTasks[rawB] = tmp;
+                reconcileSchedule();
+                activeIndex = scheduleItems.findIndex(i => i.type === 'task' && i.taskRef.id === taskId);
+                renderEditor();
+                return true;
+              }
+            } else {
+              // Unpinned task: commute FOLLOWS the main task! Move pair [task, commute] below belowItem
+              const pair = scheduleItems.splice(idx, 2);
+              scheduleItems.splice(idx + 1, 0, ...pair);
+              activeIndex = idx + 1;
+              renderEditor();
+              return true;
+            }
+          }
+
+          // If directly below is another task, swap them in rawTasks
+          if (nextItem && nextItem.type === 'task') {
+            const rawA = rawTasks.findIndex(t => t.id === taskId);
+            const rawB = rawTasks.findIndex(t => t.id === nextItem.taskRef.id);
+            if (rawA !== -1 && rawB !== -1) {
+              const tmp = rawTasks[rawA]; rawTasks[rawA] = rawTasks[rawB]; rawTasks[rawB] = tmp;
+              reconcileSchedule();
+              activeIndex = scheduleItems.findIndex(i => i.type === 'task' && i.taskRef.id === taskId);
+              renderEditor();
+              return true;
+            }
+          }
+        }
+
+        // Fallback swap
+        const targetItem = scheduleItems[targetIdx];
+        scheduleItems[idx] = targetItem;
+        scheduleItems[targetIdx] = curItem;
+        activeIndex = targetIdx;
+        renderEditor();
+        return true;
+      }
+
+      // CASE 2: Moving a COMMUTE directly
+      if (curItem.type === 'commute') {
+        const targetItem = scheduleItems[targetIdx];
+        // Bounded strictly between origin and destination
+        if (delta < 0 && targetItem.id === curItem.originId) {
+          flashBoundaryWarning(`Boundary: Commute cannot occur before origin ${curItem.fromLoc}`);
+          return false;
+        }
+        if (delta > 0 && targetItem.id === curItem.destId) {
+          flashBoundaryWarning(`Boundary: Commute cannot occur after destination ${curItem.toLoc}`);
+          return false;
+        }
+
+        scheduleItems[idx] = targetItem;
+        scheduleItems[targetIdx] = curItem;
+        activeIndex = targetIdx;
+        renderEditor();
+        return true;
+      }
+    }
+
+    function navigateCursor(delta) {
+      const targetIdx = activeIndex + delta;
+      if (targetIdx >= 0 && targetIdx < scheduleItems.length) {
+        activeIndex = targetIdx;
+        renderEditor();
+      }
+    }
+
+    function changeBuffer(val) {
+      bufferFactor = parseFloat(val);
+      renderEditor();
+    }
+
+    function changeDefaultTransport(val) {
+      defaultTransportMode = val;
+      modeKeys.forEach(k => {
+        const btn = document.getElementById(`def-btn-${k}`);
+        if (btn) {
+          if (k === val) {
+            btn.className = "px-1.5 py-0.5 rounded text-xs transition bg-[#007acc] text-white";
+          } else {
+            btn.className = "px-1.5 py-0.5 rounded text-xs transition text-[#858585] hover:text-white hover:bg-[#252528]";
+          }
+        }
+      });
+      renderEditor();
+    }
+
+    function setTaskTransport(taskId, mode, event) {
+      if (event) event.stopPropagation();
+      const commute = scheduleItems.find(i => i.type === 'commute' && (i.destId === taskId || i.originId === taskId));
+      if (commute) {
+        commute.mode = mode;
+        commutePreferences[`${commute.originId}-${commute.destId}`] = { mode };
+      } else {
+        defaultTransportMode = mode;
+      }
+      renderEditor();
+    }
+
+    function filterPlaceSuggestions(taskId, query) {
+      const dropdown = document.getElementById(`place-suggestions-${taskId}`);
+      if (!dropdown) return;
+      const q = query.trim().toLowerCase();
+      if (!q) {
+        dropdown.classList.add('hidden');
+        return;
+      }
+
+      const matches = samplePlaces.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        p.label.toLowerCase().includes(q) ||
+        p.address.toLowerCase().includes(q)
+      );
+
+      if (matches.length === 0) {
+        dropdown.innerHTML = `
+          <div class="px-3 py-2 text-[#858585] cursor-pointer hover:bg-[#252528]" onclick="pinCustomTyped('${taskId}')">
+            <span>Press <b>Enter</b> to pin: "<span class="text-white">${query}</span>"</span>
+          </div>
+        `;
+        dropdown.classList.remove('hidden');
+        return;
+      }
+
+      dropdown.innerHTML = matches.map(p => `
+        <div class="px-3 py-1.5 hover:bg-[#007acc] hover:text-white cursor-pointer flex items-center justify-between border-b border-[#2d2d30] last:border-none"
+             onclick="selectSuggestedPlace('${taskId}', '${p.name}', '${p.address.replace(/'/g, "\\'")}')">
+          <div>
+            <div class="font-medium">${p.label}</div>
+            <div class="text-[10px] text-[#858585] hover:text-white/80">${p.address}</div>
+          </div>
+          <span class="text-[#4ec9b0] text-[10px] font-mono">${p.name}</span>
+        </div>
+      `).join('');
+      dropdown.classList.remove('hidden');
+    }
+
+    function selectSuggestedPlace(taskId, name, address) {
+      const labelInput = document.getElementById(`row-label-input-${taskId}`);
+      const finalName = (labelInput && labelInput.value.trim())
+        ? (labelInput.value.startsWith('@') ? labelInput.value.trim() : '@' + labelInput.value.trim())
+        : name;
+      pinLocationToTask(taskId, finalName, address);
+    }
+
+    function pinTypedAddress(taskId) {
+      const addrInput = document.getElementById(`row-address-input-${taskId}`);
+      const labelInput = document.getElementById(`row-label-input-${taskId}`);
+      if (!addrInput || !addrInput.value.trim()) return;
+
+      const addr = addrInput.value.trim();
+      const labelVal = (labelInput && labelInput.value.trim()) ? labelInput.value.trim() : '';
+      const finalName = labelVal
+        ? (labelVal.startsWith('@') ? labelVal : '@' + labelVal)
+        : (addr.startsWith('@') ? addr : '@' + addr.split(',')[0].replace(/\s+/g, ''));
+
+      pinLocationToTask(taskId, finalName, addr);
+    }
+
+    function pinCustomTyped(taskId) {
+      pinTypedAddress(taskId);
+    }
+
+    function renderEditor() {
+      const container = document.getElementById('editor-lines');
+      container.innerHTML = '';
+
+      let lineNum = 1;
+      let totalCommute = 0;
+      let commuteCount = 0;
+      const activeSegments = [];
+
+      scheduleItems.forEach((item, idx) => {
+        const isActive = (idx === activeIndex);
+
+        // CASE 1: Commute Line Item (Moveable within boundaries)
+        if (item.type === 'commute') {
+          const commuteTime = getCommuteMinutes(item.fromLoc, item.toLoc, item.mode);
+          totalCommute += commuteTime;
+          commuteCount++;
+          activeSegments.push({ from: item.fromLoc, to: item.toLoc, time: commuteTime, mode: item.mode });
+
+          const modeInfo = transportModes[item.mode] || transportModes.drive;
+
+          const cWrapper = document.createElement('div');
+          cWrapper.className = "space-y-1";
+
+          // Drag event handling for commute line
+          cWrapper.setAttribute('draggable', 'true');
+          cWrapper.ondragstart = (e) => {
+            draggedIndex = idx;
+            e.dataTransfer.effectAllowed = 'move';
+            cWrapper.classList.add('opacity-40');
+          };
+          cWrapper.ondragend = (e) => {
+            cWrapper.classList.remove('opacity-40');
+            draggedIndex = null;
+            document.querySelectorAll('#editor-lines > div').forEach(el => el.classList.remove('drag-over-indicator'));
+          };
+          cWrapper.ondragover = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            cWrapper.classList.add('drag-over-indicator');
+          };
+          cWrapper.ondragleave = (e) => {
+            cWrapper.classList.remove('drag-over-indicator');
+          };
+          cWrapper.ondrop = (e) => {
+            e.preventDefault();
+            cWrapper.classList.remove('drag-over-indicator');
+            if (draggedIndex !== null && draggedIndex !== idx) {
+              const delta = idx - draggedIndex;
+              moveScheduleItem(draggedIndex, delta);
+            }
+          };
+
+          const cRow = document.createElement('div');
+          cRow.className = `flex items-center py-1 px-2 rounded cursor-pointer group transition ${
+            isActive
+              ? 'bg-[#222e28] border-l-2 border-[#10b981] text-emerald-300'
+              : 'hover:bg-[#1a2520] text-emerald-400'
+          }`;
+          cRow.onclick = () => {
+            activeIndex = idx;
+            renderEditor();
+          };
+
+          // Commute line: @Origin → @Destination [time] [emoji]
+          cRow.innerHTML = `
+            <!-- Drag Handle for Commute -->
+            <span class="text-[#404040] hover:text-emerald-400 cursor-grab active:cursor-grabbing select-none pr-1 text-[12px] opacity-70 group-hover:opacity-100" title="Drag commute within ${item.fromLoc} and ${item.toLoc} boundaries">⠿</span>
+            <span class="w-6 text-right pr-2 text-[#404040] select-none text-[11px]">${lineNum++}</span>
+            <span class="flex-1 font-semibold flex items-center space-x-1.5 font-mono">
+              <span>${item.fromLoc} → ${item.toLoc} [${commuteTime}]</span>
+              <!-- Transit Emoji Button Directly After Timing -->
+              <button onclick="cycleCommuteMode('${item.id}', event)" title="Click or press 'T' to cycle (${modeInfo.label})" class="bg-[#1c2e27] hover:bg-[#253f34] hover:border-emerald-400 text-xs px-1.5 py-0.5 rounded border border-emerald-500/40 inline-flex items-center cursor-pointer transition select-none hover:scale-110 active:scale-95 shadow-sm">
+                <span>${modeInfo.icon}</span>
+              </button>
+            </span>
+            <div class="flex items-center space-x-2">
+              <!-- Nudge buttons for commute -->
+              <div class="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition select-none">
+                <button onclick="moveScheduleItem(${idx}, -1); event.stopPropagation();" title="Move commute earlier (⌥↑)" class="text-[#666666] hover:text-white px-1 py-0.2 rounded hover:bg-[#253f34]">▲</button>
+                <button onclick="moveScheduleItem(${idx}, 1); event.stopPropagation();" title="Move commute later (⌥↓)" class="text-[#666666] hover:text-white px-1 py-0.2 rounded hover:bg-[#253f34]">▼</button>
+              </div>
+              <span class="text-[#555555] text-[11px] font-mono select-none">// {::commute::}</span>
+            </div>
+          `;
+
+          cWrapper.appendChild(cRow);
+          container.appendChild(cWrapper);
+          return;
+        }
+
+        // CASE 2: Regular Task Item
+        const task = item.taskRef;
+        const isExpanded = (expandedLineId === task.id);
+
+        const taskWrapper = document.createElement('div');
+        taskWrapper.className = "space-y-1 transition duration-150";
+
+        // Drag & Drop event bindings
+        taskWrapper.setAttribute('draggable', 'true');
+        taskWrapper.ondragstart = (e) => {
+          draggedIndex = idx;
+          e.dataTransfer.effectAllowed = 'move';
+          taskWrapper.classList.add('opacity-40');
+        };
+        taskWrapper.ondragend = (e) => {
+          taskWrapper.classList.remove('opacity-40');
+          draggedIndex = null;
+          document.querySelectorAll('#editor-lines > div').forEach(el => el.classList.remove('drag-over-indicator'));
+        };
+        taskWrapper.ondragover = (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          taskWrapper.classList.add('drag-over-indicator');
+        };
+        taskWrapper.ondragleave = (e) => {
+          taskWrapper.classList.remove('drag-over-indicator');
+        };
+        taskWrapper.ondrop = (e) => {
+          e.preventDefault();
+          taskWrapper.classList.remove('drag-over-indicator');
+          if (draggedIndex !== null && draggedIndex !== idx) {
+            const delta = idx - draggedIndex;
+            moveScheduleItem(draggedIndex, delta);
+          }
+        };
+
+        const row = document.createElement('div');
+        row.className = `flex items-center py-1 px-2 rounded cursor-pointer group transition ${
+          isExpanded
+            ? 'bg-[#222226] border-l-2 border-[#007acc] text-white shadow-sm'
+            : isActive
+              ? 'bg-[#28282d] border-l-2 border-[#007acc] text-white'
+              : 'hover:bg-[#232326] text-[#cccccc]'
+        }`;
+        row.onclick = () => {
+          activeIndex = idx;
+          if (expandedLineId !== null && expandedLineId !== task.id) {
+            expandedLineId = null;
+          }
+          renderEditor();
+        };
+
+        let locBadge = '';
+        if (task.location) {
+          locBadge = `
+            <span class="text-[#9cdcfe] bg-[#1e2530] px-2 py-0.5 rounded border border-[#007acc]/40 hover:border-[#007acc] text-[11px] flex items-center space-x-1.5" onclick="toggleRowExpand('${task.id}', event)" title="Click to view/change on Google Maps">
+              <span>📍 ${task.location}</span>
+              <button onclick="clearLoc('${task.id}', event)" title="Clear location" class="text-[#71717a] hover:text-rose-400 ml-1">✕</button>
+            </span>
+          `;
+        } else {
+          locBadge = `
+            <button onclick="toggleRowExpand('${task.id}', event)" title="Click to expand Google Maps & pick location" class="text-[#858585] hover:text-[#9cdcfe] hover:bg-[#28282d] text-[11px] border border-dashed border-[#3e3e42] hover:border-[#007acc] px-2 py-0.5 rounded transition">
+              + @loc
+            </button>
+          `;
+        }
+
+        row.innerHTML = `
+          <!-- Drag Handle Grip -->
+          <span class="text-[#454545] hover:text-[#9cdcfe] cursor-grab active:cursor-grabbing select-none pr-1.5 opacity-60 group-hover:opacity-100 transition" title="Drag to reorder · ⌥↑ / ⌥↓ to move">⠿</span>
+          <!-- Line Number -->
+          <span class="w-6 text-right pr-2 text-[#555555] select-none text-[11px]">${lineNum++}</span>
+          <!-- Task Text -->
+          <span class="flex-1 font-mono">${task.text}</span>
+          <!-- Mini Move Buttons (visible on hover) -->
+          <div class="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition mr-2 select-none">
+            <button onclick="moveScheduleItem(${idx}, -1); event.stopPropagation();" title="Move Up (⌥↑)" class="text-[#666666] hover:text-white px-1 py-0.2 rounded hover:bg-[#333336]">▲</button>
+            <button onclick="moveScheduleItem(${idx}, 1); event.stopPropagation();" title="Move Down (⌥↓)" class="text-[#666666] hover:text-white px-1 py-0.2 rounded hover:bg-[#333336]">▼</button>
+          </div>
+          <!-- Location Badge -->
+          <span class="text-right">${locBadge}</span>
+        `;
+        taskWrapper.appendChild(row);
+
+        // EXPANDED ROW: Google Maps & Address Search (No redundant collapse button)
+        if (isExpanded) {
+          const connectedCommute = scheduleItems.find(i => i.type === 'commute' && (i.destId === task.id || i.originId === task.id));
+          const currTaskMode = connectedCommute ? connectedCommute.mode : defaultTransportMode;
+          const expandDrawer = document.createElement('div');
+          expandDrawer.className = "ml-7 my-1 p-3 bg-[#18181b] border-l-2 border-[#007acc] rounded-r border-y border-r border-[#2d2d30] text-xs space-y-2.5 animate-fadeIn";
+          expandDrawer.onclick = (e) => e.stopPropagation();
+
+          expandDrawer.innerHTML = `
+            <!-- Top bar inside drawer: Presets & Transport (Emojis Only) -->
+            <div class="flex items-center justify-between flex-wrap gap-2 pb-1.5 border-b border-[#2d2d30]">
+              <div class="flex items-center space-x-1.5 flex-wrap gap-1">
+                <span class="text-[#858585] text-[11px]">Presets:</span>
+                <button onclick="pinLocationToTask('${task.id}', '@Home', '742 Evergreen Terr', event)" class="bg-[#252526] hover:bg-[#007acc] hover:text-white text-[#9cdcfe] px-2 py-0.5 rounded border border-[#3e3e42] text-[11px] transition">@Home</button>
+                <button onclick="pinLocationToTask('${task.id}', '@Office', '500 Corporate Way', event)" class="bg-[#252526] hover:bg-[#007acc] hover:text-white text-[#9cdcfe] px-2 py-0.5 rounded border border-[#3e3e42] text-[11px] transition">@Office</button>
+                <button onclick="pinLocationToTask('${task.id}', '@Cafe', '88 Artisan Way', event)" class="bg-[#252526] hover:bg-[#007acc] hover:text-white text-[#9cdcfe] px-2 py-0.5 rounded border border-[#3e3e42] text-[11px] transition">@Cafe</button>
+                <button onclick="pinLocationToTask('${task.id}', '@Gym', '45 Fitness Blvd', event)" class="bg-[#252526] hover:bg-[#007acc] hover:text-white text-[#9cdcfe] px-2 py-0.5 rounded border border-[#3e3e42] text-[11px] transition">@Gym</button>
+                <button onclick="pinLocationToTask('${task.id}', '@Campus', '100 University Ave', event)" class="bg-[#252526] hover:bg-[#007acc] hover:text-white text-[#9cdcfe] px-2 py-0.5 rounded border border-[#3e3e42] text-[11px] transition">@Campus</button>
+              </div>
+              <!-- Transport Mode (Emojis Only Buttons) -->
+              <div class="flex items-center space-x-1 bg-[#222225] p-0.5 rounded border border-[#3e3e42]">
+                <button onclick="setTaskTransport('${task.id}', 'drive', event)" title="Drive" class="px-1.5 py-0.5 rounded text-xs transition ${currTaskMode === 'drive' ? 'bg-[#007acc] text-white shadow-sm' : 'text-[#858585] hover:text-white hover:bg-[#2d2d30]'}">🚗</button>
+                <button onclick="setTaskTransport('${task.id}', 'transit', event)" title="Transit" class="px-1.5 py-0.5 rounded text-xs transition ${currTaskMode === 'transit' ? 'bg-[#007acc] text-white shadow-sm' : 'text-[#858585] hover:text-white hover:bg-[#2d2d30]'}">🚇</button>
+                <button onclick="setTaskTransport('${task.id}', 'bike', event)" title="Bike" class="px-1.5 py-0.5 rounded text-xs transition ${currTaskMode === 'bike' ? 'bg-[#007acc] text-white shadow-sm' : 'text-[#858585] hover:text-white hover:bg-[#2d2d30]'}">🚲</button>
+                <button onclick="setTaskTransport('${task.id}', 'walk', event)" title="Walk" class="px-1.5 py-0.5 rounded text-xs transition ${currTaskMode === 'walk' ? 'bg-[#007acc] text-white shadow-sm' : 'text-[#858585] hover:text-white hover:bg-[#2d2d30]'}">🚶</button>
+              </div>
+            </div>
+
+            <!-- Address search + optional label field -->
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-2">
+              <div class="md:col-span-8 relative">
+                <div class="flex items-center space-x-1.5 bg-[#252526] px-2.5 py-1 rounded border border-[#3e3e42] focus-within:border-[#007acc]">
+                  <span class="text-[#858585]">📍</span>
+                  <input id="row-address-input-${task.id}" type="text" placeholder="Type address or search Google Maps..."
+                    oninput="filterPlaceSuggestions('${task.id}', this.value)"
+                    onkeydown="if(event.key==='Enter') pinTypedAddress('${task.id}')"
+                    class="bg-transparent text-white text-[11px] outline-none w-full placeholder-[#555555]">
+                  <span class="text-[#6a9955] text-[10px] select-none">↵ Enter</span>
+                </div>
+                <!-- Autocomplete suggestions dropdown -->
+                <div id="place-suggestions-${task.id}" class="hidden absolute top-full left-0 right-0 mt-1 bg-[#1e1e20] border border-[#3e3e42] rounded shadow-2xl z-50 text-[11px] max-h-48 overflow-y-auto">
+                </div>
+              </div>
+
+              <div class="md:col-span-4 flex items-center space-x-1.5 bg-[#252526] px-2.5 py-1 rounded border border-[#3e3e42]">
+                <span class="text-[#858585] text-[11px]">Label:</span>
+                <input id="row-label-input-${task.id}" type="text" placeholder="@myPlace (optional)" value="${task.location || ''}"
+                  class="bg-transparent text-[#9cdcfe] text-[11px] outline-none w-full">
+              </div>
+            </div>
+
+            <!-- Interactive Google Maps View -->
+            <div class="relative w-full rounded border border-[#2d2d30] overflow-hidden">
+              <div class="bg-[#202023] px-2.5 py-1 flex items-center justify-between text-[10px] text-[#858585] border-b border-[#2d2d30]">
+                <div class="flex items-center space-x-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  <span class="text-white font-semibold">Google Maps Canvas</span>
+                  <span>· Click any preset pin or click map to drop pin</span>
+                </div>
+                <span class="text-[#6a9955]">One-click auto-selects</span>
+              </div>
+              <div id="inline-map-${task.id}" class="w-full h-44 bg-[#141416]"></div>
+            </div>
+
+            <!-- Hint Footer -->
+            <div class="flex items-center justify-between text-[10px] text-[#858585] pt-0.5">
+              <span class="text-[#6a9955]">✓ Selecting or typing auto-pins & recalculates commute immediately</span>
+              <span>Click line again to dismiss</span>
+            </div>
+          `;
+
+          taskWrapper.appendChild(expandDrawer);
+
+          // Initialize Leaflet Map inside this expanded row
+          setupInlineMap(task.id, task.location);
+        }
+
+        container.appendChild(taskWrapper);
+      });
+
+      // Splitter
+      const splitterRow = document.createElement('div');
+      splitterRow.className = "flex items-center py-1 px-2 text-[#555555] text-[11px]";
+      splitterRow.innerHTML = `
+        <span class="w-6 text-right pr-2 select-none">${lineNum++}</span>
+        <span>-------------</span>
+      `;
+      container.appendChild(splitterRow);
+
+      // Update Status bar
+      document.getElementById('status-total-time').innerText = `Total commute: ${totalCommute}m`;
+      if (document.getElementById('status-active-count')) {
+        document.getElementById('status-active-count').innerText = `${commuteCount} commute timings active`;
+      }
+      if (document.getElementById('status-line-focus')) {
+        document.getElementById('status-line-focus').innerText = `Ln ${activeIndex + 1}, Col 1`;
+      }
+
+      // Render Dynamic Segments on Right Panel
+      const segContainer = document.getElementById('route-segments-list');
+      if (segContainer) {
+        segContainer.innerHTML = '';
+        if (activeSegments.length === 0) {
+          segContainer.innerHTML = `<p class="text-[#858585] text-[11px]">Pin locations to 2+ tasks to calculate routes.</p>`;
+        } else {
+          activeSegments.forEach(s => {
+            const raw = travelTimes[`${s.from}-${s.to}`] || travelTimes[`${s.to}-${s.from}`] || 20;
+            const mInfo = transportModes[s.mode] || transportModes.drive;
+            const segEl = document.createElement('div');
+            segEl.className = "p-2 rounded bg-[#1e1e20] border border-[#2d2d30] flex items-center justify-between";
+            segEl.innerHTML = `
+              <div>
+                <div class="text-[#4ec9b0] flex items-center space-x-1.5">
+                  <span>${s.from} → ${s.to}</span>
+                  <span class="text-xs bg-[#252528] px-1.5 py-0.5 rounded border border-[#3e3e42]" title="${mInfo.label}">${mInfo.icon}</span>
+                </div>
+                <div class="text-[#858585] text-[10px] mt-0.5">${raw}m base × ${mInfo.factor} mode × ${bufferFactor} buf</div>
+              </div>
+              <span class="text-[#dcdcaa] font-bold text-xs">[${s.time}]</span>
+            `;
+            segContainer.appendChild(segEl);
+          });
+        }
+      }
+
+      // Update Live .ans File Preview text
+      const previewEl = document.getElementById('live-file-preview');
+      if (previewEl) {
+        let fileText = '';
+        scheduleItems.forEach(item => {
+          if (item.type === 'commute') {
+            const commuteTime = getCommuteMinutes(item.fromLoc, item.toLoc, item.mode);
+            const mInfo = transportModes[item.mode] || transportModes.drive;
+            fileText += `${item.fromLoc} → ${item.toLoc} [${commuteTime}] ${mInfo.icon} //{::commute::}\n`;
+          } else {
+            const t = item.taskRef;
+            let line = t.text;
+            if (t.location) line += ` ${t.location}`;
+            fileText += `${line}\n`;
+          }
+        });
+        fileText += '-------------\n';
+        previewEl.innerText = fileText;
+        notifyExtensionOfChange(fileText);
+      }
+    }
+
+    function setupInlineMap(taskId, currentLoc) {
+      setTimeout(() => {
+        const el = document.getElementById(`inline-map-${taskId}`);
+        if (!el || typeof L === 'undefined') return;
+
+        if (currentMapInstance) {
+          try { currentMapInstance.remove(); } catch (e) {}
+          currentMapInstance = null;
+        }
+
+        const defaultLat = 40.7306;
+        const defaultLng = -73.9922;
+        const initialPos = (presetLocations[currentLoc]
+          ? [presetLocations[currentLoc].lat, presetLocations[currentLoc].lng]
+          : [defaultLat, defaultLng]);
+
+        const map = L.map(el, {
+          zoomControl: true,
+          attributionControl: false
+        }).setView(initialPos, 13);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+          maxZoom: 19,
+          subdomains: 'abcd'
+        }).addTo(map);
+
+        // Add pins for all preset locations
+        Object.keys(presetLocations).forEach(name => {
+          const p = presetLocations[name];
+          const isSelected = (name === currentLoc);
+
+          const icon = L.divIcon({
+            className: 'custom-map-pin',
+            html: `<div class="cursor-pointer flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] font-mono shadow-xl transition ${
+              isSelected
+                ? 'bg-[#007acc] text-white border-2 border-white scale-110 font-bold'
+                : 'bg-[#1e1e20] text-[#9cdcfe] hover:bg-[#2d2d30] border border-[#3e3e42] hover:border-[#007acc]'
+            }">
+              <span>📍</span><span>${name}</span>
+            </div>`,
+            iconSize: [60, 24],
+            iconAnchor: [30, 12]
+          });
+
+          const m = L.marker([p.lat, p.lng], { icon }).addTo(map);
+          m.on('click', () => {
+            pinLocationToTask(taskId, name, p.address);
+          });
+        });
+
+        // Click anywhere on map to drop pin and select it!
+        map.on('click', (e) => {
+          const lat = e.latlng.lat.toFixed(4);
+          const lng = e.latlng.lng.toFixed(4);
+          const labelInput = document.getElementById(`row-label-input-${taskId}`);
+          const labelVal = (labelInput && labelInput.value.trim()) ? labelInput.value.trim() : '';
+          const finalLabel = labelVal
+            ? (labelVal.startsWith('@') ? labelVal : '@' + labelVal)
+            : `@Pin_${lat.slice(-2)}${lng.slice(-2)}`;
+          const addr = `${lat}, ${lng} (Pinned on Google Maps)`;
+
+          pinLocationToTask(taskId, finalLabel, addr);
+        });
+
+        currentMapInstance = map;
+        map.invalidateSize();
+      }, 50);
+    }
+
+    // Keyboard Controller:
+    // 1. Normal Up/Down: Navigate cursor across lines
+    // 2. Option + Up/Down: Move line (tasks and bounded commutes)
+    // 3. 'T' or 't': Cycle transit mode on commute line
+    window.addEventListener('keydown', (e) => {
+      const isInputActive = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+      if (isInputActive) return;
+
+      // Option / Alt + Up / Down: Move item (with commute boundaries)
+      if (e.altKey) {
+        if (e.key === 'ArrowUp' || e.code === 'ArrowUp') {
+          e.preventDefault();
+          moveScheduleItem(activeIndex, -1);
+        } else if (e.key === 'ArrowDown' || e.code === 'ArrowDown') {
+          e.preventDefault();
+          moveScheduleItem(activeIndex, 1);
+        }
+        return;
+      }
+
+      // Normal navigation: ArrowUp & ArrowDown
+      if (!e.metaKey && !e.ctrlKey) {
+        if (e.key === 'ArrowUp' || e.code === 'ArrowUp') {
+          e.preventDefault();
+          navigateCursor(-1);
+        } else if (e.key === 'ArrowDown' || e.code === 'ArrowDown') {
+          e.preventDefault();
+          navigateCursor(1);
+        } else if (e.key === 't' || e.key === 'T') {
+          e.preventDefault();
+          cycleActiveTransitMode();
+        }
+      }
+    });
+
+    // Initial reconcile and render
+    reconcileSchedule();
+    renderEditor();
+  </script>
+
+</body>
+</html>

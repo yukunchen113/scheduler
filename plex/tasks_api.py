@@ -12,30 +12,30 @@ from googleapiclient.discovery import build
 
 # If modifying these scopes, delete the file token.json.
 # note: documentation - https://googleapis.github.io/google-api-python-client/docs/dyn/tasks_v1.html
-SCOPES = ["https://www.googleapis.com/auth/tasks"]
+from plex.config import get_credentials_path, get_token_json_path
 
-CREDENTIALS_BASEPATH = os.path.join(os.environ["HOME"], ".credentials/")
+SCOPES = ["https://www.googleapis.com/auth/tasks"]
 
 
 @cache
 def get_task_service():
     creds = None
-    # The file token.json stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
-    credentials_token_file = os.path.join(CREDENTIALS_BASEPATH, "token.json")
+    credentials_token_file = get_token_json_path()
     if os.path.exists(credentials_token_file):
         creds = Credentials.from_authorized_user_file(credentials_token_file, SCOPES)
-    # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                os.path.join(CREDENTIALS_BASEPATH, "credentials.json"), SCOPES
-            )
+            client_secrets = get_credentials_path()
+            if not os.path.exists(client_secrets):
+                raise FileNotFoundError(
+                    f"Google Tasks client secrets not found at '{client_secrets}'. "
+                    "Run 'plex setup' to configure Google sync."
+                )
+            flow = InstalledAppFlow.from_client_secrets_file(client_secrets, SCOPES)
             creds = flow.run_local_server(port=0)
-        # Save the credentials for the next run
+        os.makedirs(os.path.dirname(credentials_token_file), exist_ok=True)
         with open(credentials_token_file, "w") as token:
             token.write(creds.to_json())
     service = build("tasks", "v1", credentials=creds)

@@ -1,11 +1,12 @@
 import functools
+import os
 import random
 from datetime import datetime, timedelta
 
 from gcsa.event import Event
 from gcsa.google_calendar import GoogleCalendar
 
-from plex.secrets import email  # you need to create this file
+from plex.config import get_calendar_email, get_credentials_path, get_token_pickle_path
 
 EVENT_ID_ENCODING = "0123456789abcdefghijklmnopqrstuv"
 # added to the start of the uuid. Chars must be a part of EVENT_ID_ENCODING
@@ -23,7 +24,17 @@ def validate_event_id(event_id: str):
 
 @functools.cache
 def get_calendar():
-    return GoogleCalendar(email)
+    email = get_calendar_email()
+    creds_path = get_credentials_path()
+    token_path = get_token_pickle_path()
+    if not os.path.exists(token_path) and not os.path.exists(creds_path):
+        raise FileNotFoundError(
+            "Google Calendar credentials not found. Run 'plex setup' to configure Google Calendar sync, "
+            "or use '--is_skip_calendar' for local offline planning."
+        )
+    return GoogleCalendar(
+        calendar=email, credentials_path=creds_path, token_path=token_path
+    )
 
 
 def generate_event_id(additional_id: str = "") -> str:

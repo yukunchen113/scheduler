@@ -65,10 +65,16 @@ def add_splitter(filename: str) -> None:
 
 
 def make_daily_filename(filename: str, is_create_file: bool = False) -> str:
-    assert (
-        not "." in filename
-    ), "Specify filename without extension. Filename must not contain '.'"
-    filename = os.path.join(DAILY_BASEDIR, filename)
+    # Strip extension if supplied
+    if filename.endswith(".ans"):
+        filename = filename[:-4]
+    elif filename.endswith(".txt"):
+        filename = filename[:-4]
+
+    # If it's a bare name (e.g. '2026-10-05'), prefix with DAILY_BASEDIR
+    if not os.path.dirname(filename):
+        filename = os.path.join(DAILY_BASEDIR, filename)
+
     # backwards compatibility for .txt file:
     if os.path.exists(filename + ".txt"):
         os.rename(filename + ".txt", filename + ".ans")
